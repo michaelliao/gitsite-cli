@@ -1,0 +1,41 @@
+<div class="question">
+<p>Who created <em>Java</em>?</p>
+<form class="question" onsubmit="let ok=2===Array.from(this.getElementsByTagName('input')).filter(i=>i.checked).reduce((acc,i)=>acc+parseInt(i.value),0); this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null; return false;">
+<div><label class="question"><input type="radio" name="question" value="1" class="question"> James <em>Bond</em></label></div>
+<div><label class="question"><input type="radio" name="question" value="2" class="question"> James Gosling</label></div>
+<div><label class="question"><input type="radio" name="question" value="4" class="question"> James Simons</label></div>
+<div class="question"><button type="submit" class="question"><span>Submit</span></button> <span class="question correct" style="display:none"><span>Correct</span></span> <span class="question wrong" style="display:none"><span>Wrong</span></span></div>
+</form>
+</div>
+<div class="question">
+<p>Guido <em>van</em> Rossum is:</p>
+<form class="question" onsubmit="let ok=18===Array.from(this.getElementsByTagName('input')).filter(i=>i.checked).reduce((acc,i)=>acc+parseInt(i.value),0); this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null; return false;">
+<div><label class="question"><input type="checkbox" name="question" value="1" class="question"> American</label></div>
+<div><label class="question"><input type="checkbox" name="question" value="2" class="question"> Dutch</label></div>
+<div><label class="question"><input type="checkbox" name="question" value="4" class="question"> Chinese</label></div>
+<div><label class="question"><input type="checkbox" name="question" value="8" class="question"> Finnish</label></div>
+<div><label class="question"><input type="checkbox" name="question" value="16" class="question"> Earthling</label></div>
+<div class="question"><button type="submit" class="question"><span>Submit</span></button> <span class="question correct" style="display:none"><span>Correct</span></span> <span class="question wrong" style="display:none"><span>Wrong</span></span></div>
+</form>
+</div>
+<div class="question">
+<p>The largest planet in the solar system is:</p>
+<form class="question" onsubmit="let ok='Jupiter'===this.getElementsByTagName('input')[0].value.trim(); this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null; return false;">
+<div><label class="question"><input type="text" name="question" value="" class="question"></label></div>
+<div class="question"><button type="submit" class="question"><span>Submit</span></button> <span class="question correct" style="display:none"><span>Correct</span></span> <span class="question wrong" style="display:none"><span>Wrong</span></span></div>
+</form>
+</div>
+<div class="question">
+<p>The largest planet in the solar system is (ignore case):</p>
+<form class="question" onsubmit="let ok='mr\'bob'===this.getElementsByTagName('input')[0].value.trim().toLowerCase(); this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null; return false;">
+<div><label class="question"><input type="text" name="question" value="" class="question"></label></div>
+<div class="question"><button type="submit" class="question"><span>Submit</span></button> <span class="question correct" style="display:none"><span>Correct</span></span> <span class="question wrong" style="display:none"><span>Wrong</span></span></div>
+</form>
+</div>
+<div class="question">
+<p>When were the first modern Olympic Games held?</p>
+<form class="question" onsubmit="let ok='1896-04-06'===this.getElementsByTagName('input')[0].value.trim(); this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null; return false;">
+<div><label class="question"><input type="date" name="question" value="" class="question"></label></div>
+<div class="question"><button type="submit" class="question"><span>Submit</span></button> <span class="question correct" style="display:none"><span>Correct</span></span> <span class="question wrong" style="display:none"><span>Wrong</span></span></div>
+</form>
+</div>

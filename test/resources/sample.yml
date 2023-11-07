@@ -1,0 +1,7 @@
+# a sample yaml file:
+site:
+  name: GitSite
+  description: Web site tool
+  version: 1
+  author:
+    full-name: Crypto Michael
