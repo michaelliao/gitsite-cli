@@ -5,3 +5,5 @@ site:
   version: 1
   author:
     full-name: Crypto Michael
+  last-updated-at:
+    date: 2023-11-07
