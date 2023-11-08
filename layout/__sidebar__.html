@@ -1,0 +1,114 @@
+<script>
+    window.gs_status = {
+        current_chapter_uri: null,
+        current_chapter_version: 0
+    };
+
+    function set_current_chapter_uri(uri) {
+        const old_uri = window.gs_status.current_chapter_uri;
+        console.log(`set chapter: ${old_uri} => ${uri}`);
+        if (old_uri) {
+            // dynamic load part of page:
+            history.pushState({}, '', uri);
+            document.querySelector(`#gs-index a[href="${old_uri}"]`).classList.remove('gs-active');
+        }
+        const a = document.querySelector(`#gs-index a[href="${uri}"]`);
+        a.classList.add('gs-active');
+        window.gs_status.current_chapter_uri = uri;
+        // path from root to active item should be open:
+        const root = document.querySelector(`#gs-index`);
+        let node = a;
+        // find active '<div>':
+        while (node.tagName.toLowerCase() !== 'div') {
+            node = node.parentNode;
+        }
+        while (node !== root) {
+            if (node.tagName.toLowerCase() === 'div') {
+                let span_closed = node.querySelector('a span.gs-index-item-closed');
+                if (span_closed) {
+                    gs_index_item_collapse({ target: span_closed }, 'closed', 'open');
+                }
+            }
+            node = node.parentNode;
+        }
+    }
+
+    async function gs_load_chapter(uri) {
+        // load /books/<name>/<chapter>.htm:
+        let chapter_uri = uri.substring(0, uri.length - 1);
+        let resp = await fetch(chapter_uri);
+        if (resp.status === 200) {
+            return await resp.text();
+        }
+    }
+
+    function gs_index_item_show(e) {
+        // div.gs-index-item > a:click
+        gs_index_item_collapse(e, 'closed', 'open');
+        // load page by ajax:
+        let uri = e.target.getAttribute('href');
+        if (uri !== window.gs_status.current_chapter_uri) {
+            console.log(`try load new chapter: ${uri}`);
+            gs_load_chapter(uri).then((html) => {
+                console.log(`loaded ok: ${uri}`);
+                document.getElementById('gs-content').innerHTML = html;
+                set_current_chapter_uri(uri);
+            }).catch(err => {
+                console.error(err);
+            });
+        }
+        return false;
+    }
+
+    // set open/closed:
+    function gs_index_item_collapse(e, fromState, toState) {
+        e.stopPropagation && e.stopPropagation();
+        // div.gs-index-item > a > span.gs-index-item-open-or-closed:click 
+        let node = e.target;
+        while (node.tagName.toLowerCase() !== 'div') {
+            node = node.parentNode;
+        }
+        node.classList.remove(`gs-index-item-${fromState}`);
+        node.classList.add(`gs-index-item-${toState}`);
+        return false;
+    }
+</script>
+<!--
+{% set icon_closed = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>' %}
+{% set icon_open = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" /></svg>' %}
+{% macro index_item(node) %}
+<div class="gs-index-item gs-index-item-closed">
+    <a href="/books/{{ node.uri }}.html" onclick="return gs_index_item_show(event)">
+        <span class="gs-index-item-marker">{{ node.marker }}</span>
+        {{ node.title }}
+        {% if node.children.length > 0 %}
+        <span class="gs-index-item-action gs-index-item-closed" onclick="return gs_index_item_collapse(event, 'closed', 'open')">
+            {{ icon_closed | safe }}
+        </span>
+        <span class="gs-index-item-action gs-index-item-open" onclick="return gs_index_item_collapse(event, 'open', 'closed')">
+            {{ icon_open | safe }}
+        </span>
+        {% endif %}
+    </a>
+    {% if node.children.length > 0 %}
+    <div class="gs-index-item-children">
+        {% for item in node.children %}
+        {{ index_item(item) }}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endmacro %}
+-->
+<div id="gs-index">
+    <h3>{{ __index__.title }}</h3>
+    {% for item in __index__.children %}
+    {{ index_item(item) }}
+    {% endfor %}
+</div>
+<script>
+    set_current_chapter_uri(location.pathname);
+    window.onpopstate = function (e) {
+        set_current_chapter_uri(location.pathname);
+    }
+</script>

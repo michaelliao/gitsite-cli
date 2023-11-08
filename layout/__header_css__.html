@@ -1,0 +1,224 @@
+<!-- custom css -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/default.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+    @font-face {
+        font-family: "JetBrainsMono";
+        src: url("/static/JetBrainsMono-Regular.woff2");
+    }
+</style>
+
+<script src="https://cdn.tailwindcss.com/3.3.5?plugins=forms,typography,aspect-ratio"></script>
+<style type="text/tailwindcss">
+    @layer components {
+        a {
+            @apply text-sky-600 hover:text-sky-500;
+        }
+        a > svg {
+            @apply inline-block w-5 h-5;
+        }
+
+        #gs-index > h3 {
+            @apply pl-1 pt-1 pb-1 text-sm text-slate-400 font-semibold uppercase;
+        }
+
+        #gs-index div.gs-index-item {
+            @apply relative;
+        }
+
+        #gs-index div.gs-index-item > div.gs-index-item-children {
+            @apply relative ml-2 pl-2 border-l border-slate-200;
+        }
+
+        #gs-index div.gs-index-item > a > span.gs-index-item-action {
+            @apply cursor-pointer w-3 h-3 block absolute right-1 mx-1 top-1/2;
+            transform: translateY(-50%);
+        }
+
+        #gs-index div.gs-index-item > a {
+            @apply block relative rounded my-1 pl-1 pr-5 py-1 truncate hover:bg-slate-200;
+        }
+
+        #gs-index div.gs-index-item > a > span.gs-index-item-marker {
+            @apply tabular-nums;
+        }
+
+        #gs-index div.gs-index-item > a:not(:has(span.gs-index-item-action)) {
+            @apply pr-1;
+        }
+
+        #gs-index div.gs-index-item > a.gs-active {
+            @apply text-sky-600 font-semibold bg-slate-100;
+        }
+
+        #gs-index div.gs-index-item-closed > div.gs-index-item-children {
+            @apply hidden;
+        }
+
+        #gs-index div.gs-index-item-open > div.gs-index-item-children {
+            @apply block;
+        }
+
+        #gs-index div.gs-index-item-closed > a > span.gs-index-item-open {
+            @apply hidden;
+        }
+
+        #gs-index div.gs-index-item-open > a > span.gs-index-item-closed {
+            @apply hidden;
+        }
+
+        #gs-content h1 {
+            @apply text-[2rem] leading-[2rem] my-4 font-semibold;
+        }
+
+        #gs-content h2 {
+            @apply text-[1.75rem] leading-[1.75rem] my-4 font-semibold;
+        }
+
+        #gs-content h3 {
+            @apply text-[1.5rem] leading-[1.5rem] my-4 font-semibold;
+        }
+
+        #gs-content h4 {
+            @apply text-[1.25rem] leading-[1.25rem] my-4 font-semibold;
+        }
+
+        #gs-content h5 {
+            @apply my-4 font-semibold;
+        }
+
+        #gs-content h6 {
+            @apply my-4 font-semibold;
+        }
+
+        #gs-content p {
+            @apply my-4 leading-7
+        }
+
+        #gs-content :not(pre)>code {
+            @apply rounded border border-slate-300 text-sm p-1 mx-1;
+        }
+
+        #gs-content em {
+            @apply font-semibold italic px-1;
+        }
+
+        #gs-content table {
+            @apply w-full text-left my-4 border-collapse rounded;
+        }
+
+        #gs-content table tr {
+            @apply border-b border-slate-300;
+        }
+
+        #gs-content table tbody tr {
+            @apply hover:bg-slate-100;
+        }
+
+        #gs-content table th,td {
+            @apply p-2;
+        }
+
+        #gs-content blockquote {
+            @apply border-l-4 border-slate-300 italic text-slate-500 my-4 px-2;
+        }
+
+        #gs-content div.alert {
+            @apply border-l-4 px-4 my-4;
+            padding-top: 1px;
+            padding-bottom: 1px;
+        }
+
+        #gs-content div.alert-success {
+            @apply border-green-700 text-green-800 bg-green-50;
+        }
+
+        #gs-content div.alert-info {
+            @apply border-blue-700 text-blue-800 bg-blue-50;
+        }
+
+        #gs-content div.alert-warning {
+            @apply border-yellow-700 text-yellow-800 bg-yellow-50;
+        }
+
+        #gs-content div.alert-danger {
+            @apply border-red-700 text-red-800 bg-red-50;
+        }
+
+        #gs-content pre {
+            @apply whitespace-pre-wrap break-all my-4 p-2 rounded border bg-slate-50;
+        }
+
+        #gs-content pre.ascii {
+            @apply p-0 border-0 bg-transparent;
+            font-family: JetBrainsMono;
+            font-size: 14px;
+            line-height: 18px;
+        }
+
+        #gs-content pre.ascii>code {
+            font-family: JetBrainsMono;
+        }
+
+        #gs-content div.question {
+            @apply my-4;
+        }
+
+        #gs-content div.question input {
+            @apply focus:shadow-transparent;
+        }
+
+        #gs-content div.question > p {
+            @apply mt-4 mb-1;
+        }
+
+        #gs-content div.question button.question {
+            @apply px-2 py-1 text-sm rounded border border-sky-600 text-sky-500;
+        }
+
+        #gs-content div.question button.question  {
+            @apply before:content-['提交'];
+        }
+
+        #gs-content div.question button.question > span {
+            @apply hidden;
+        }
+
+        #gs-content div.question span.question.correct {
+            @apply text-green-800 before:content-['正确!'];
+        }
+
+        #gs-content div.question span.question.correct > span {
+            @apply hidden;
+        }
+
+        #gs-content div.question span.question.wrong {
+            @apply text-red-800 before:content-['错误!'];
+        }
+
+        #gs-content div.question span.question.wrong > span {
+            @apply hidden;
+        }
+
+        :root {
+            --side-bar-width: 300px;
+        }
+        #sidebar {
+            width: var(--side-bar-width);
+        }
+        #main {
+            @apply w-full h-full relative max-w-screen-2xl mx-auto;
+        }
+        #content {
+            @apply pl-4 md:pl-[var(--side-bar-width)] absolute top-0 left-0 right-0 bottom-0 pr-4 sm:pr-6 md:pr-8;
+        }
+        #sidebar {
+            @apply max-md:hidden md:w-[var(--side-bar-width)] absolute top-0 left-0 bottom-0 border-r border-slate-200 pl-4 sm:pl-6 md:pl-8;
+        }
+
+        nav.g-nav > ul > li {
+            @apply h-[58px];
+        }
+    }
+</style>
+<!--// custom css -->
