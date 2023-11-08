@@ -13,8 +13,9 @@ Who created Java?
 
 Rendered as:
 
-<div class="alert alert-error">
-  <p>This is an <strong>ERROR</strong> message.</p>
+<div class="question">
+  <form ...>
+  </form>
 </div>
 */
 

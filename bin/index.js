@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import path from 'node:path';
-import fs from 'node:fs/promises';
 import readline from 'node:readline/promises';
 import * as fsSync from 'node:fs';
 
@@ -10,41 +9,43 @@ import mime from 'mime';
 import Koa from 'koa';
 import Router from '@koa/router';
 
-import generateBookIndex from './book-index.mjs';
-import { loadLayout, loadTextFile, loadBinaryFile, loadYaml, executeTemplate } from './helper.mjs';
-
-const globalStatus = {
-
-    bookWatchVersion: 1
-};
-
-generateBookIndex(path.resolve('books'), 'gitsite-guide');
-
-
-
-async function getBookIndex(siteDir, book) {
-    return '<h1>index</h1>';
-}
-
-async function getBookChapter(siteDir, book, chapter) {
-    return '<h1>chapter hello</h1>';
-}
+import createMarkdown from './markdown.mjs';
+import { generateBookIndex, findChapter, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile } from './helper.mjs';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
-    const { stdin: input, stdout: output } = require('node:process');
+    const { stdin: input, stdout: output } = await import('node:process');
     const rl = readline.createInterface({ input, output });
-    let siteDir = await rl.question('GitSite directory (default to current directory): ');
-    if (siteDir.trim() === '') {
-        siteDir = process.cwd();
+    let gsDir = await rl.question('directory of GitSite (default to current directory): ');
+    gsDir = gsDir.trim();
+    if (gsDir === '') {
+        gsDir = process.cwd();
     }
-    let name = path.basename(siteDir);
-    let gsName = await rl.question(`GitSite name (default to ${name}): `);
+    let defaultName = path.basename(gsDir);
+    let gsName = await rl.question(`name of GitSite (default to ${defaultName}): `);
+    gsName = gsName.trim();
+    if (gsName.trim() === '') {
+        gsName = defaultName;
+    }
 
-    console.log(`Prepare generating new git site:
-Directory: ${siteDir}
+    console.log(`new git site:
+directory: ${gsDir}
+name: ${gsName}
 `);
+    let gsYN = await rl.question('generate now? y/N: ');
+    gsYN = gsYN.trim();
     await rl.close();
+
+    if (gsYN.toLowerCase() !== 'y') {
+        console.log('abort.');
+        process.exit(1);
+    }
+
+    // test if directory is empty:
+
+    // extract zip to directory:
+
+    console.log('done.');
 }
 
 function sendError(code, ctx, err) {
@@ -78,38 +79,82 @@ function runGitSite(dir, port) {
         console.error(`port is invalid: ${port}`);
         process.exit(1);
     }
+    // create template engine:
+    const templateEngine = createTemplateEngine(path.resolve(siteDir, 'layout'));
+
     // start koa http server:
     const app = new Koa(); fsSync
     const router = new Router();
     app.use(router.routes())
         .use(router.allowedMethods());
 
-    router.get('/books/:book/:chapter', async ctx => {
+    router.get('/', async ctx => {
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = '<h1>Homepage</h1>';
+    });
+
+    router.get('/books/:book.html', async ctx => {
+        try {
+            let book = ctx.params.book;
+            let root = await generateBookIndex(siteDir, 'books', book);
+            if (root.children.length === 0) {
+                throw `Book "${book} is empty.`;
+            }
+            let child = root.children[0];
+            let redirect = '/books/' + child.uri;
+            ctx.type = 'text/html; charset=utf-8';
+            ctx.body = `<html>
+<head>
+    <meta http-equiv="refresh" content="0;URL='${redirect}'" />
+</head>
+<body>
+</body>
+</html>
+`;
+        } catch (err) {
+            sendError(400, ctx, err);
+        }
+    });
+
+    router.get('/books/:book/:chapters(.*).html', async ctx => {
         try {
             let book = ctx.params.book,
-                chapter = ctx.params.chapter;
+                chapters = ctx.params.chapters.split('/');
             const templateContext = await loadYaml(siteDir, 'site.yml');
-            await getBookIndex(siteDir, book);
-            await getBookChapter(siteDir, book, chapter);
-            let layouts = await loadLayout(siteDir);
-            let outputs = [];
-            for (let layout of layouts) {
-                if (layout.type === 'text') {
-                    let s = executeTemplate(layout.value, templateContext);
-                    outputs.push(s);
-                } else if (layout.type === 'file') {
-                    let templ = await loadTextFile(siteDir, 'layout/' + layout.value);
-                    let s = executeTemplate(templ, templateContext);
-                    outputs.push(s);
-                } else if (layout.type === 'virtual') {
-                    //
-                } else {
-                    throw `Error: unsupported server-side-include instruction: ${layout.type}`;
-                }
+            let root = await generateBookIndex(siteDir, book);
+            // find chapter by uri:
+            let uri = `${book}/` + chapters.join('/');
+            let node = findChapter(root, uri);
+            if (node === null) {
+                throw `Chapter not found: ${ctx.params.chapters}`;
             }
-            let html = outputs.join('');
+            templateContext.__index__ = root;
+            const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
+            const markdown = await createMarkdown();
+            templateContext.__content__ = markdown.render(mdFileContent);
+            const html = templateEngine.render('index.html', templateContext);
             ctx.type = 'text/html; charset=utf-8';
             ctx.body = html;
+        } catch (err) {
+            sendError(400, ctx, err);
+        }
+    });
+
+    router.get('/books/:book/:chapters(.*).htm', async ctx => {
+        try {
+            let book = ctx.params.book,
+                chapters = ctx.params.chapters.split('/');
+            let root = await generateBookIndex(siteDir, book);
+            // find chapter by uri:
+            let uri = `${book}/` + chapters.join('/');
+            let node = findChapter(root, uri);
+            if (node === null) {
+                throw `Chapter not found: ${ctx.params.chapters}`;
+            }
+            const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
+            const markdown = await createMarkdown();
+            ctx.type = 'text/html; charset=utf-8';
+            ctx.body = markdown.render(mdFileContent);
         } catch (err) {
             sendError(400, ctx, err);
         }
@@ -118,7 +163,7 @@ function runGitSite(dir, port) {
     router.get('/(.*)', async ctx => {
         try {
             // global static file:
-            let staticFileContent = await loadBinaryFile(siteDir, 'layout/' + ctx.request.path);
+            let staticFileContent = await loadBinaryFile(siteDir, 'layout', ctx.request.path.substring(1));
             ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
             ctx.body = staticFileContent;
         } catch (err) {
@@ -133,12 +178,6 @@ function runGitSite(dir, port) {
     app.listen(port);
     console.log(`set gitsite directory: ${siteDir}`);
     console.log(`server is running at port ${port}...`);
-    fsSync.watch(siteDir, { recursive: true }, (eventType, filename) => {
-        console.log(eventType);
-        // could be either 'rename' or 'change'. new file event and delete
-        // also generally emit 'rename'
-        console.log(filename);
-    })
 }
 
 function main() {
