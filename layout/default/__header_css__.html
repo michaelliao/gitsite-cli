@@ -11,6 +11,14 @@
 <script src="https://cdn.tailwindcss.com/3.3.5?plugins=forms,typography,aspect-ratio"></script>
 <style type="text/tailwindcss">
     @layer components {
+        .light .gs-hidden-on-light {
+            @apply hidden;
+        }
+
+        .dark .gs-hidden-on-dark {
+            @apply hidden;
+        }
+
         a {
             @apply text-sky-600 hover:text-sky-500;
         }
@@ -48,7 +56,11 @@
         }
 
         #gs-index div.gs-index-item > a.gs-active {
-            @apply text-sky-600 font-semibold bg-slate-100;
+            @apply text-sky-600 bg-slate-100;
+        }
+
+        #gs-index div.gs-index-item > a.gs-active > span.gs-index-item-title {
+            @apply font-semibold;
         }
 
         #gs-index div.gs-index-item-closed > div.gs-index-item-children {

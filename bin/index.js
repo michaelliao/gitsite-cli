@@ -67,7 +67,7 @@ ${err.toString()}</code></pre>
 `;
 }
 
-function runGitSite(dir, port) {
+async function runGitSite(dir, port) {
     // check site dir exists:
     const siteDir = path.resolve(dir);
     if (!fsSync.existsSync(siteDir)) {
@@ -80,10 +80,12 @@ function runGitSite(dir, port) {
         process.exit(1);
     }
     // create template engine:
-    const templateEngine = createTemplateEngine(path.resolve(siteDir, 'layout'));
+    const templateContext = await loadYaml(siteDir, 'site.yml');
+    const theme = templateContext.site && templateContext.site.theme || 'default';
+    const templateEngine = createTemplateEngine(path.resolve(siteDir, 'layout', theme));
 
     // start koa http server:
-    const app = new Koa(); fsSync
+    const app = new Koa();
     const router = new Router();
     app.use(router.routes())
         .use(router.allowedMethods());
@@ -163,7 +165,8 @@ function runGitSite(dir, port) {
     router.get('/(.*)', async ctx => {
         try {
             // global static file:
-            let staticFileContent = await loadBinaryFile(siteDir, 'layout', ctx.request.path.substring(1));
+            const theme = templateContext.site && templateContext.site.theme || 'default';
+            let staticFileContent = await loadBinaryFile(siteDir, 'layout', theme, ctx.request.path.substring(1));
             ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
             ctx.body = staticFileContent;
         } catch (err) {
@@ -195,8 +198,8 @@ function main() {
         .description('Run as static web site in local environment.')
         .option('-d, --dir <directory>', 'local directory.', '.')
         .option('-p, --port <port>', 'local server port.', '3000')
-        .action(options => {
-            runGitSite(options.dir, parseInt(options.port));
+        .action(async options => {
+            await runGitSite(options.dir, parseInt(options.port));
         });
 
     program.command('build')

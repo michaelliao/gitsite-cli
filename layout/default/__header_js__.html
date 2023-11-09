@@ -1,0 +1,25 @@
+<!-- custom js -->
+<script>
+    function isDarkMode() {
+        let colorScheme = localStorage.getItem('color-scheme');
+        if (colorScheme !== null) {
+            return colorScheme === 'dark';
+        }
+        // detect system dark mode:
+        return window.matchMedia !== undefined && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+
+    function setDarkMode(isDark) {
+        console.log(`set color scheme: ${isDark ? 'dark' : 'light'}`);
+        localStorage.setItem('color-scheme', isDark ? 'dark' : 'light');
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+        } else {
+            document.documentElement.classList.add('light');
+            document.documentElement.classList.remove('dark');
+        }
+    }
+
+</script>
+<!-- // custom js -->

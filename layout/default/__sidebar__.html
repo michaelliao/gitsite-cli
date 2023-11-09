@@ -4,12 +4,19 @@
         current_chapter_version: 0
     };
 
+    function find_parent_node(node, tagName) {
+        tagName = tagName.toLowerCase();
+        while (node.tagName.toLowerCase() !== tagName) {
+            node = node.parentNode;
+        }
+        return node;
+    }
+
     function set_current_chapter_uri(uri) {
         const old_uri = window.gs_status.current_chapter_uri;
         console.log(`set chapter: ${old_uri} => ${uri}`);
         if (old_uri) {
             // dynamic load part of page:
-            history.pushState({}, '', uri);
             document.querySelector(`#gs-index a[href="${old_uri}"]`).classList.remove('gs-active');
         }
         const a = document.querySelector(`#gs-index a[href="${uri}"]`);
@@ -17,11 +24,8 @@
         window.gs_status.current_chapter_uri = uri;
         // path from root to active item should be open:
         const root = document.querySelector(`#gs-index`);
-        let node = a;
         // find active '<div>':
-        while (node.tagName.toLowerCase() !== 'div') {
-            node = node.parentNode;
-        }
+        let node = find_parent_node(a, 'div');
         while (node !== root) {
             if (node.tagName.toLowerCase() === 'div') {
                 let span_closed = node.querySelector('a span.gs-index-item-closed');
@@ -46,12 +50,15 @@
         // div.gs-index-item > a:click
         gs_index_item_collapse(e, 'closed', 'open');
         // load page by ajax:
-        let uri = e.target.getAttribute('href');
+        let a = find_parent_node(e.target, 'a');
+        let uri = a.getAttribute('href');
         if (uri !== window.gs_status.current_chapter_uri) {
             console.log(`try load new chapter: ${uri}`);
             gs_load_chapter(uri).then((html) => {
                 console.log(`loaded ok: ${uri}`);
                 document.getElementById('gs-content').innerHTML = html;
+                console.log(`push state: ${uri}`);
+                history.pushState({}, '', uri);
                 set_current_chapter_uri(uri);
             }).catch(err => {
                 console.error(err);
@@ -64,10 +71,7 @@
     function gs_index_item_collapse(e, fromState, toState) {
         e.stopPropagation && e.stopPropagation();
         // div.gs-index-item > a > span.gs-index-item-open-or-closed:click 
-        let node = e.target;
-        while (node.tagName.toLowerCase() !== 'div') {
-            node = node.parentNode;
-        }
+        let node = find_parent_node(e.target, 'div');
         node.classList.remove(`gs-index-item-${fromState}`);
         node.classList.add(`gs-index-item-${toState}`);
         return false;
@@ -80,7 +84,7 @@
 <div class="gs-index-item gs-index-item-closed">
     <a href="/books/{{ node.uri }}.html" onclick="return gs_index_item_show(event)">
         <span class="gs-index-item-marker">{{ node.marker }}</span>
-        {{ node.title }}
+        <span class="gs-index-item-title">{{ node.title }}</span>
         {% if node.children.length > 0 %}
         <span class="gs-index-item-action gs-index-item-closed" onclick="return gs_index_item_collapse(event, 'closed', 'open')">
             {{ icon_closed | safe }}
@@ -109,6 +113,7 @@
 <script>
     set_current_chapter_uri(location.pathname);
     window.onpopstate = function (e) {
+        console.log(`popstate: ${location.pathname}`);
         set_current_chapter_uri(location.pathname);
     }
 </script>

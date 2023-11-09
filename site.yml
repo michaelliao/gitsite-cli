@@ -1,0 +1,10 @@
+site:
+  name: GitSite
+  description: GitSite is a static web site generator for Git.
+  keywords: gitsite, git, static web site, html
+  theme: default
+contact:
+  name: Michael Liao
+  github: https://github.com/michaelliao/gitsite-cli
+  twitter: https://twitter.com/liaoxuefeng
+# you can add any items:
