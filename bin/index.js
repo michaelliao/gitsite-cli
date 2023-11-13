@@ -10,7 +10,7 @@ import Koa from 'koa';
 import Router from '@koa/router';
 
 import createMarkdown from './markdown.mjs';
-import { generateBookIndex, findChapter, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile } from './helper.mjs';
+import { generateBookIndex, findChapter, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters } from './helper.mjs';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
@@ -126,14 +126,26 @@ async function runGitSite(dir, port) {
             let root = await generateBookIndex(siteDir, book);
             // find chapter by uri:
             let uri = `${book}/` + chapters.join('/');
-            let node = findChapter(root, uri);
-            if (node === null) {
+            let chapterList = flattenChapters(root);
+            let node = chapterList.find(c => c.uri === uri);
+            if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
+            }
+            let prevChapter = null, nextChapter = null;
+            let nodeIndex = chapterList.findIndex(c => c === node);
+            if (nodeIndex > 0) {
+                prevChapter = chapterList[nodeIndex - 1];
+            }
+            if (nodeIndex < chapterList.length - 1) {
+                nextChapter = chapterList[nodeIndex + 1];
             }
             templateContext.__index__ = root;
             const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
             const markdown = await createMarkdown();
-            templateContext.__content__ = markdown.render(mdFileContent);
+            node.content = markdown.render(mdFileContent);
+            templateContext.chapter = node;
+            templateContext.prevChapter = prevChapter;
+            templateContext.nextChapter = nextChapter;
             const html = templateEngine.render('index.html', templateContext);
             ctx.type = 'text/html; charset=utf-8';
             ctx.body = html;
@@ -143,20 +155,37 @@ async function runGitSite(dir, port) {
     });
 
     router.get('/books/:book/:chapters(.*).htm', async ctx => {
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        await sleep(1000);
         try {
             let book = ctx.params.book,
                 chapters = ctx.params.chapters.split('/');
             let root = await generateBookIndex(siteDir, book);
             // find chapter by uri:
             let uri = `${book}/` + chapters.join('/');
-            let node = findChapter(root, uri);
-            if (node === null) {
+            let chapterList = flattenChapters(root);
+            let node = chapterList.find(c => c.uri === uri);
+            if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
+            let prevChapter = null, nextChapter = null;
+            let nodeIndex = chapterList.findIndex(c => c === node);
+            if (nodeIndex > 0) {
+                prevChapter = chapterList[nodeIndex - 1];
+            }
+            if (nodeIndex < chapterList.length - 1) {
+                nextChapter = chapterList[nodeIndex + 1];
+            }
+            const templateContext = {};
             const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
             const markdown = await createMarkdown();
+            node.content = markdown.render(mdFileContent);
+            templateContext.chapter = node;
+            templateContext.prevChapter = prevChapter;
+            templateContext.nextChapter = nextChapter;
+            const html = templateEngine.render('book_content.html', templateContext);
             ctx.type = 'text/html; charset=utf-8';
-            ctx.body = markdown.render(mdFileContent);
+            ctx.body = html;
         } catch (err) {
             sendError(400, ctx, err);
         }

@@ -55,6 +55,24 @@ async function markdownFileInfo(dir) {
     return [mdFile, title];
 }
 
+function flatternNode(array, node) {
+    array.push(node);
+    if (node.children.length > 0) {
+        for (let child of node.children) {
+            flatternNode(array, child);
+        }
+    }
+}
+
+export function flattenChapters(root) {
+    // depth-first search:
+    let arr = [];
+    for (let child of root.children) {
+        flatternNode(arr, child);
+    }
+    return arr;
+}
+
 export function findChapter(node, uri) {
     if (node.uri === uri) {
         return node;
@@ -68,24 +86,6 @@ export function findChapter(node, uri) {
         }
     }
     return null;
-}
-
-function indexItem(node) {
-    let tabs = '    '.repeat(node.level);
-    let html = `<div class="gs-index-item">
-${tabs}<a href="#0" class="">${node.title}
-${tabs}    <img class="gs-index-item-state-closed" src="/static/icon-closed.svg">
-${tabs}    <img class="gs-index-item-state-open" src="/static/icon-open.svg">
-${tabs}</a>
-`;
-}
-
-export function generateBookIndexContent(root) {
-    return `<div id="gs-index">
-    <div class="gs-index gs-index-title">Python教程</div>` + root.children.map(indexItem).join('\n') +
-        `    </div>
-</div>
-`;
 }
 
 export async function generateBookIndex(siteDir, bookDirName) {

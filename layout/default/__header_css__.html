@@ -9,8 +9,13 @@
 </style>
 
 <script src="https://cdn.tailwindcss.com/3.3.5?plugins=forms,typography,aspect-ratio"></script>
+<script>
+    tailwind.config = {
+        darkMode: 'class'
+    }
+</script>
 <style type="text/tailwindcss">
-    @layer components {
+    @layer utilities {
         .light .gs-hidden-on-light {
             @apply hidden;
         }
@@ -20,14 +25,42 @@
         }
 
         a {
-            @apply text-sky-600 hover:text-sky-500;
+            @apply text-sky-600 hover:text-sky-500 dark:text-sky-400 hover:dark:text-sky-300;
         }
         a > svg {
-            @apply inline-block w-5 h-5;
+            @apply inline-block w-5 h-5 mt-[-3px];
+        }
+
+        :root {
+            --side-bar-width: 300px;
+        }
+
+        #sidebar {
+            @apply max-md:hidden w-[var(--side-bar-width)] md:w-[var(--side-bar-width)] absolute top-0 left-0 bottom-0 border-r border-slate-200 dark:border-slate-600 pl-4 sm:pl-6 md:pl-8;
+        }
+
+        #main {
+            @apply w-full h-full relative max-w-full mx-auto;
+        }
+
+        #content {
+            @apply pl-4 md:pl-[var(--side-bar-width)] absolute top-0 left-0 right-0 bottom-0;
+        }
+
+        nav.gs-nav > ul > li {
+            @apply h-[58px];
+        }
+
+        nav.gs-nav-main > ul > li > a {
+            @apply inline-block py-4 border-b-2 border-transparent;
+        }
+
+        nav.gs-nav-main > ul > li > a.gs-active {
+            @apply border-sky-600 hover:border-sky-500;
         }
 
         #gs-index > h3 {
-            @apply pl-1 pt-1 pb-1 text-sm text-slate-400 font-semibold uppercase;
+            @apply pl-1 pt-1 pb-1 text-sm font-semibold uppercase;
         }
 
         #gs-index div.gs-index-item {
@@ -210,26 +243,6 @@
 
         #gs-content div.question span.question.wrong > span {
             @apply hidden;
-        }
-
-        :root {
-            --side-bar-width: 300px;
-        }
-        #sidebar {
-            width: var(--side-bar-width);
-        }
-        #main {
-            @apply w-full h-full relative max-w-screen-2xl mx-auto;
-        }
-        #content {
-            @apply pl-4 md:pl-[var(--side-bar-width)] absolute top-0 left-0 right-0 bottom-0 pr-4 sm:pr-6 md:pr-8;
-        }
-        #sidebar {
-            @apply max-md:hidden md:w-[var(--side-bar-width)] absolute top-0 left-0 bottom-0 border-r border-slate-200 pl-4 sm:pl-6 md:pl-8;
-        }
-
-        nav.g-nav > ul > li {
-            @apply h-[58px];
         }
     }
 </style>
