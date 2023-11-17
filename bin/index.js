@@ -10,7 +10,7 @@ import Koa from 'koa';
 import Router from '@koa/router';
 
 import createMarkdown from './markdown.js';
-import { generateBookIndex, findChapter, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters } from './helper.js';
+import { generateBookIndex, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, writeTextFile } from './helper.js';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
@@ -67,6 +67,96 @@ ${err.toString()}</code></pre>
 `;
 }
 
+function findPrevNextChapter(chapterList, node) {
+    let prevChapter = null, nextChapter = null;
+    let nodeIndex = chapterList.findIndex(c => c === node);
+    if (nodeIndex > 0) {
+        prevChapter = chapterList[nodeIndex - 1];
+    }
+    if (nodeIndex < chapterList.length - 1) {
+        nextChapter = chapterList[nodeIndex + 1];
+    }
+    return [prevChapter, nextChapter];
+}
+
+async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
+    const buildJs = path.join(themeDir, jsFile);
+    if (fsSync.existsSync(buildJs)) {
+        console.log(`run ${buildJs}...`);
+        const build = await import(buildJs);
+        const cwd = process.cwd();
+        process.chdir(themeDir);
+        await build.default(templateContext, outputDir);
+        process.chdir(cwd);
+    }
+}
+
+async function buildGitSite(dir, output) {
+    // check site dir exists:
+    const siteDir = path.resolve(dir);
+    if (!fsSync.existsSync(siteDir)) {
+        console.error(`dir not exist: ${dir}`);
+        process.exit(1);
+    }
+    const outputDir = path.resolve(output);
+    console.log(`build git site: ${siteDir} to: ${outputDir}`);
+    if (fsSync.existsSync(outputDir)) {
+        console.warn(`clean exist output dir: ${outputDir}`);
+        fsSync.rmSync(outputDir, { recursive: true });
+    }
+    fsSync.mkdirSync(outputDir);
+    // create template engine:
+    const templateContext = await loadYaml(siteDir, 'site.yml');
+    const theme = templateContext.site && templateContext.site.theme || 'default';
+    const templateEngine = createTemplateEngine(path.resolve(siteDir, 'layout', theme));
+    // theme dir:
+    const themeDir = path.join(siteDir, 'layout', theme);
+    // run pre-build.js:
+    await runBuildScript(themeDir, 'pre-build.js', templateContext, outputDir);
+    // generate book:
+    let books = await getSubDirs(path.join(siteDir, 'books'));
+    for (let book of books) {
+        console.log(`generate book: ${book}`);
+        let root = await generateBookIndex(siteDir, book);
+        if (root.children.length === 0) {
+            throw `Empty book ${book}`;
+        }
+        let first = root.children[0];
+        let redirect = `/books/${first.uri}.html`;
+        const bookHtml = templateEngine.render('book.html', {
+            redirect: redirect
+        });
+        await writeTextFile(path.join(outputDir, 'books', `${book}.html`), bookHtml);
+        let chapterList = flattenChapters(root);
+        console.log(JSON.stringify(chapterList, null, '  '));
+        for (let node of chapterList) {
+            const targetFile = path.join(outputDir, 'books', `${node.uri}.html`);
+            console.log(`> generate file: ${targetFile}`);
+
+            const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
+            templateContext.__index__ = root;
+            const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
+            const markdown = await createMarkdown();
+            node.content = markdown.render(mdFileContent);
+            templateContext.chapter = node;
+            templateContext.prevChapter = prevChapter;
+            templateContext.nextChapter = nextChapter;
+            // set production mode:
+            templateContext.production = true;
+            const html = templateEngine.render('index.html', templateContext);
+            const htm = templateEngine.render('book_content.html', templateContext);
+            await writeTextFile(targetFile, html);
+            await writeTextFile(targetFile.substring(0, targetFile.length - 1), htm);
+
+        }
+    }
+    // run post-build.js:
+    await runBuildScript(themeDir, 'post-build.js', templateContext, outputDir);
+    console.log(`Run nginx and visit http://localhost:8000\ndocker run --rm -p 8000:80 -v ${outputDir}:/usr/share/nginx/html nginx:latest`);
+    console.log('done.');
+    process.exit(0);
+}
+
 async function runGitSite(dir, port) {
     // check site dir exists:
     const siteDir = path.resolve(dir);
@@ -98,21 +188,17 @@ async function runGitSite(dir, port) {
     router.get('/books/:book.html', async ctx => {
         try {
             let book = ctx.params.book;
-            let root = await generateBookIndex(siteDir, 'books', book);
+            let root = await generateBookIndex(siteDir, book);
             if (root.children.length === 0) {
                 throw `Book "${book} is empty.`;
             }
             let child = root.children[0];
-            let redirect = '/books/' + child.uri;
+            let redirect = `/books/${child.uri}.html`;
+            const html = templateEngine.render('book.html', {
+                redirect: redirect
+            });
             ctx.type = 'text/html; charset=utf-8';
-            ctx.body = `<html>
-<head>
-    <meta http-equiv="refresh" content="0;URL='${redirect}'" />
-</head>
-<body>
-</body>
-</html>
-`;
+            ctx.body = html;
         } catch (err) {
             sendError(400, ctx, err);
         }
@@ -131,14 +217,7 @@ async function runGitSite(dir, port) {
             if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
-            let prevChapter = null, nextChapter = null;
-            let nodeIndex = chapterList.findIndex(c => c === node);
-            if (nodeIndex > 0) {
-                prevChapter = chapterList[nodeIndex - 1];
-            }
-            if (nodeIndex < chapterList.length - 1) {
-                nextChapter = chapterList[nodeIndex + 1];
-            }
+            let [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             templateContext.__index__ = root;
             const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
             const markdown = await createMarkdown();
@@ -225,7 +304,7 @@ function main() {
 
     program.command('run')
         .description('Run as static web site in local environment.')
-        .option('-d, --dir <directory>', 'local directory.', '.')
+        .option('-d, --dir <directory>', 'source directory.', '.')
         .option('-p, --port <port>', 'local server port.', '3000')
         .action(async options => {
             await runGitSite(options.dir, parseInt(options.port));
@@ -233,10 +312,10 @@ function main() {
 
     program.command('build')
         .description('Build static web site.')
+        .option('-d, --dir <directory>', 'source directory.', '.')
         .option('-o, --output <directory>', 'output directory.', 'docs')
-        .option('-p, --port <port>', 'local server port.', '5000')
-        .action((str, options) => {
-            console.log(`new site ${JSON.stringify(str)}, ${JSON.stringify(options)}`);
+        .action(async options => {
+            await buildGitSite(options.dir, options.output);
         });
 
     program.parse();
