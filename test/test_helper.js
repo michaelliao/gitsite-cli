@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { generateBookIndex, loadTextFile, loadBinaryFile, loadYaml } from '../bin/helper.mjs';
+import { generateBookIndex, loadTextFile, loadBinaryFile, loadYaml } from '../bin/helper.js';
 
 test(`load yaml`, async (t) => {
     let obj = await loadYaml('.', 'test/resources/sample.yml');

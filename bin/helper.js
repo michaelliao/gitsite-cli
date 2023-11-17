@@ -1,10 +1,10 @@
 // helper functions:
 
-import readline from 'node:readline';
 import fs from 'node:fs/promises';
 import { existsSync, createReadStream } from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
+import lunr from 'lunr';
 import nunjucks from 'nunjucks';
 import LineByLine from 'n-readlines';
 
@@ -88,6 +88,7 @@ export function findChapter(node, uri) {
     return null;
 }
 
+// generate book index tree as json:
 export async function generateBookIndex(siteDir, bookDirName) {
     const booksDir = path.resolve(siteDir, 'books');
     let bookUrlBase = `/books/${bookDirName}`;
@@ -153,6 +154,7 @@ export function createTemplateEngine(dir) {
     return env;
 }
 
+// load yaml file as object:
 export async function loadYaml(...paths) {
     let str = await loadTextFile(...paths);
     let obj = YAML.parse(str);
@@ -167,7 +169,9 @@ export async function loadYaml(...paths) {
                 dupKey(obj[key]);
                 if (key.indexOf('-') > 0) {
                     let key2 = key.replace(/\-([a-z])/g, (h, a) => a.toUpperCase());
-                    copy[key2] = obj[key];
+                    if (copy[key2] === undefined) {
+                        copy[key2] = obj[key];
+                    }
                 }
             }
             for (let key in copy) {
@@ -179,12 +183,30 @@ export async function loadYaml(...paths) {
     return obj;
 }
 
+// load text file content using utf-8 encoding:
 export async function loadTextFile(...paths) {
     return await fs.readFile(path.resolve(...paths), {
         encoding: 'utf8'
     });
 }
 
+// load binary file content as buffer:
 export async function loadBinaryFile(...paths) {
     return await fs.readFile(path.resolve(...paths));
+}
+
+// create search index:
+export async function createSearchIndex() {
+    let idx = lunr(function () {
+        this.field('title');
+        this.field('content');
+        this.metadataWhitelist = ['position'];
+        this.add({
+            'id': '/books/abc/xyz/hello-world',
+            'title': 'A simple search example by Lunr',
+            'content': 'If music be the food of love, play on: Give me excess of it…'
+        });
+    });
+    let result = idx.search('food');
+    console.log(JSON.stringify(result));
 }

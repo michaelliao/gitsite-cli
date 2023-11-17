@@ -39,7 +39,7 @@ async function createMarkdown(opt) {
     plugin_names.sort();
     let codeBlockPlugins = [];
     for (let name of plugin_names) {
-        if (name.endsWith('.mjs')) {
+        if (name.endsWith('.js')) {
             console.log(`auto import plugin: ${name}`);
             let mod = await import(`./plugin/${name}`);
             codeBlockPlugins.push(mod.default);

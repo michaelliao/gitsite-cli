@@ -9,8 +9,8 @@ import mime from 'mime';
 import Koa from 'koa';
 import Router from '@koa/router';
 
-import createMarkdown from './markdown.mjs';
-import { generateBookIndex, findChapter, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters } from './helper.mjs';
+import createMarkdown from './markdown.js';
+import { generateBookIndex, findChapter, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters } from './helper.js';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
