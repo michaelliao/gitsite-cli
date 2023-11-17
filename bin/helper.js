@@ -55,6 +55,11 @@ async function markdownFileInfo(dir) {
     return [mdFile, title];
 }
 
+export async function getSubDirs(dir) {
+    let subDirs = (await fs.readdir(dir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
+    return subDirs;
+}
+
 function flatternNode(array, node) {
     array.push(node);
     if (node.children.length > 0) {
@@ -108,7 +113,7 @@ export async function generateBookIndex(siteDir, bookDirName) {
             uri: parent === null ? uri : parent.uri + '/' + uri,
             children: []
         };
-        let subDirs = (await fs.readdir(fullDir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
+        let subDirs = await getSubDirs(fullDir);
         if (subDirs.length > 0) {
             subDirs.sort((s1, s2) => {
                 let c1 = chapterURI(s1);
@@ -137,7 +142,6 @@ export async function generateBookIndex(siteDir, bookDirName) {
         return item;
     }
     let root = await listDir(null, bookDirName, 0);
-    console.log(JSON.stringify(root, null, '  '));
     return root;
 }
 
@@ -188,6 +192,16 @@ export async function loadTextFile(...paths) {
     return await fs.readFile(path.resolve(...paths), {
         encoding: 'utf8'
     });
+}
+
+// write text file content using utf-8 encoding:
+export async function writeTextFile(fpath, content) {
+    const dir = path.dirname(fpath);
+    if (!existsSync(dir)) {
+        console.log(`create dir: ${dir}`);
+        await fs.mkdir(dir, { recursive: true });
+    }
+    await fs.writeFile(fpath, content, { encoding: 'utf8' })
 }
 
 // load binary file content as buffer:
