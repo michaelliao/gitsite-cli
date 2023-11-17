@@ -1,0 +1,52 @@
+{
+  "name": "gitsite-cli",
+  "version": "1.0.0",
+  "description": "GitSite Command Line Application",
+  "author": "Michael Liao",
+  "license": "GPL-3.0",
+  "homepage": "https://github.com/michaelliao/gitsite-cli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michaelliao/gitsite-cli.git"
+  },
+  "keywords": [
+    "Git",
+    "GitSite",
+    "Static",
+    "Web Site",
+    "Generator"
+  ],
+  "bugs": {
+    "url": "https://github.com/michaelliao/gitsite-cli/issues"
+  },
+  "main": "bin/index.js",
+  "type": "module",
+  "bin": {
+    "gitsite-cli": "./bin/index.js"
+  },
+  "scripts": {
+    "test": "echo NoTest"
+  },
+  "dependencies": {
+    "@koa/router": "^12.0.1",
+    "@mdit/plugin-katex": "^0.6.5",
+    "chokidar": "^3.5.3",
+    "commander": "^11.1.0",
+    "highlight.js": "^11.9.0",
+    "katex": "^0.16.9",
+    "koa": "^2.14.2",
+    "lodash": "^4.17.21",
+    "lunr": "^2.3.9",
+    "lunr-languages": "^1.14.0",
+    "markdown-it": "^13.0.2",
+    "markdown-it-container": "^3.0.0",
+    "markdown-to-txt": "^2.0.1",
+    "mime": "^3.0.0",
+    "n-readlines": "^1.0.1",
+    "nunjucks": "^3.2.4",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.5"
+  }
+}
