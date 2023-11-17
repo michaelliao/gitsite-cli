@@ -1,9 +1,10 @@
-<div id="gs-chapter">
-    <div id="gs-chapter-content">
+<div id="gsi-chapter">
+    <div id="gsi-chapter-content">
         {{ chapter.content | safe }}
     </div>
-    <div id="gs-chapter-prev-next" class="flex flex-row mt-4">
-        <div id="gs-chapter-prev" class="basis-1/2 mr-2 text-left">
+    <hr>
+    <div id="gsi-chapter-prev-next" class="flex flex-row mt-4">
+        <div id="gsi-chapter-prev" class="basis-1/2 mr-2 text-left">
             {% if prevChapter %}
             <a href="/books/{{ prevChapter.uri }}.html" onclick="return gs_index_item_show(event)"
                 class="inline-block border rounded px-4 py-2">
@@ -16,7 +17,7 @@
             </a>
             {% endif %}
         </div>
-        <div id="gs-chapter-next" class="basis-1/2 ml-2 text-right">
+        <div id="gsi-chapter-next" class="basis-1/2 ml-2 text-right">
             {% if nextChapter %}
             <a href="/books/{{ nextChapter.uri }}.html" onclick="return gs_index_item_show(event)"
                 class="inline-block border rounded px-4 py-2">

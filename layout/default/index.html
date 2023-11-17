@@ -11,16 +11,14 @@
     {% include "__header_js__.html" %}
 </head>
 
-<body class="text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900" style="height:100%">
-    <div id="backdrop" class="hidden z-20 fixed inset-0 bg-black/20 dark:bg-slate-900/80 backdrop-blur-sm">
-    </div>
+<body class="h-full text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900">
     <div class="relative w-screen h-screen" style="min-height: 100%;">
         <div class="flex flex-col h-full">
-            <div id="header" class="sticky z-10 top-0 w-full border-b border-slate-200 dark:border-slate-600">
+            <div id="gsi-header" class="sticky z-10 top-0 w-full border-b border-slate-200 dark:border-slate-600">
                 <div class="max-w-full mx-auto px-4 sm:px-6 md:px-8">
                     <div class="relative flex items-center">
                         <div class="relative flex items-center">
-                            <nav class="gs-nav gs-nav-main font-semibold">
+                            <nav class="gsc-nav gsc-nav-main font-semibold">
                                 <ul class="flex">
                                     <li class="mr-4 max-md:list-item md:hidden">
                                         <a href="#0" class="inline-block py-4 border-b-2 border-transparent">
@@ -41,8 +39,8 @@
                                             {{ site.name }}
                                         </a>
                                     </li>
-                                    <li class="mr-4"><a class="gs-active" href="#1">Guide</a></li>
-                                    <li class="mr-4"><a href="/blog">Blog</a></li>
+                                    <li class="mr-4"><a class="gsc-active" href="#1">Guide</a></li>
+                                    <li class="mr-4"><a href="/blog">博客</a></li>
                                     <li class="mr-4"><a href="/blog">Market Place</a></li>
                                     <li class="mr-4"><a href="/showcase">Showcase</a></li>
                                     <li class="relative"><!-- more menu -->
@@ -56,14 +54,18 @@
 
                                         <div
                                             class="g-popup-menu absolute translate-y-12 z-10 top-0 right-0 p-4 rounded shadow-md text-slate-700 bg-white border border-slate-200">
-                                            <ul class="flex">
-                                                <li><a href="#0" class="inline-block">
+                                            <ul>
+                                                <li class="block">
+                                                    <a href="#0" class="inline-block">
                                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none"
                                                             viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
-                                                            class="inline-block w-6 h-6">
+                                                            class="inline w-5 h-5">
                                                             <path stroke-linecap="round" stroke-linejoin="round"
                                                                 d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-                                                        </svg> Light</a></li>
+                                                        </svg>
+                                                        Light
+                                                    </a>
+                                                </li>
                                                 <li><a href="#0">Dark</a></li>
                                             </ul>
                                         </div>
@@ -72,7 +74,7 @@
                             </nav>
                         </div>
                         <div class="relative flex items-center ml-auto">
-                            <nav class="gs-nav gs-nav-right font-semibold">
+                            <nav class="gsc-nav gsc-nav-right font-semibold">
                                 <ul class="flex space-x-4">
                                     <!-- search -->
                                     <li><a class="inline-block py-4 border-b-2 border-transparent" href="#search">
@@ -85,7 +87,7 @@
                                     </li>
                                     <!--// search -->
                                     <!-- light mode -->
-                                    <li class="gs-hidden-on-dark">
+                                    <li class="gsc-hidden-on-dark">
                                         <a class="inline-block py-4 border-b-2 border-transparent" href="#0"
                                             onclick="setDarkMode(true);return false;">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
@@ -97,7 +99,7 @@
                                     </li>
                                     <!--// light mode -->
                                     <!-- dark mode -->
-                                    <li class="gs-hidden-on-light">
+                                    <li class="gsc-hidden-on-light">
                                         <a class="inline-block py-4 border-b-2 border-transparent" href="#0"
                                             onclick="setDarkMode(false);return false;">
                                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
@@ -114,13 +116,13 @@
                     </div>
                 </div>
             </div>
-            <div id="main" class="flex-1">
+            <div id="gsi-main" class="flex-1">
                 <div id="content">
-                    <div id="gs-content" class="w-full h-full py-4 md:pl-4 pr-4 sm:pr-6 md:pr-8 overflow-y-scroll">
+                    <div id="gsi-content" class="w-full h-full py-4 md:pl-4 pr-4 sm:pr-6 md:pr-8 overflow-y-scroll">
                         {% include "book_content.html" %}
                     </div>
                 </div>
-                <div id="sidebar">
+                <div id="gsi-sidebar">
                     <div class="w-full h-full py-4 overflow-y-scroll">
                         {% include "book_index.html" %}
                     </div>
@@ -128,6 +130,18 @@
             </div>
             <div id="footer" class="bottom-0 w-full flex-none border-t border-slate-200 dark:border-slate-600">
                 {% include "__footer__.html" %}
+            </div>
+        </div>
+    </div>
+    <div id="gsi-search" onclick="this.classList.add('xhidden')"
+        class="hidden z-30 fixed inset-0 bg-black/60 dark:bg-slate-800/60 backdrop-blur-sm">
+        <div class="z-40 fixed bg-slate-50 rounded-md p-8 top-[5%] bottom-[5%] left-[10%] right-[10%]">
+            <input type="text"
+                class="block w-full border-0 bg-transparent text-gray-800 placeholder:text-gray-400 rounded-md shadow-sm ring-1 ring-inset ring-gray-300 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-600 sm:text-sm sm:leading-6"
+                placeholder="Type keywords to search...">
+            <hr class="my-4">
+            <div id="gsi-search-result">
+
             </div>
         </div>
     </div>
