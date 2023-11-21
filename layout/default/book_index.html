@@ -1,8 +1,6 @@
 <script>
-    window.gs_status = {
-        current_chapter_uri: null,
-        current_chapter_version: 0
-    };
+    window.gs_status.current_chapter_uri = null;
+    window.gs_status.current_chapter_version = 0;
 
     function gs_set_loading() {
         let svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" style="margin:auto;background:transparent;display:block;" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid">
@@ -55,6 +53,9 @@
             history.pushState({}, '', uri);
         }
         console.log(`try load new chapter: ${uri}`);
+        if (window.gs_status.show_offcanvas) {
+            hideOffcanvas();
+        }
         gs_set_loading();
         window.gs_status.current_chapter_version++;
         const version = window.gs_status.current_chapter_version;

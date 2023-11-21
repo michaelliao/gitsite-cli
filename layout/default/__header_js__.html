@@ -24,5 +24,35 @@
     (function () {
         setDarkMode(isDarkMode());
     })();
+
+    function showSearch() {
+        document.getElementById('gsi-search').classList.remove('hidden');
+    }
+
+    function hideSearch() {
+        document.getElementById('gsi-search').classList.add('hidden');
+    }
+
+    function showOffcanvas() {
+        document.getElementById('gsi-offcanvas').classList.remove('hidden');
+        let indexDom = document.getElementById('gsi-index');
+        document.getElementById('gsi-offcanvas-index').prepend(indexDom);
+        window.gs_status.show_offcanvas = true;
+        const popup = document.getElementById('gsi-offcanvas-popup');
+        if (popup.animate) {
+            popup.animate([{ left: "0px" }], 200).onfinish = () => popup.classList.add('gsc-offcanvas-popup-show');
+        } else {
+            // animation not supported:
+            popup.classList.add('gsc-offcanvas-popup-show');
+        }
+    }
+
+    function hideOffcanvas() {
+        document.getElementById('gsi-offcanvas').classList.add('hidden');
+        document.getElementById('gsi-offcanvas-popup').classList.remove('gsc-offcanvas-popup-show');
+        let indexDom = document.getElementById('gsi-index');
+        document.getElementById('gsi-sidebar').prepend(indexDom);
+        window.gs_status.show_offcanvas = false;
+    }
 </script>
 <!-- // custom js -->
