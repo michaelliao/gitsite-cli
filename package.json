@@ -40,6 +40,7 @@
     "lunr-languages": "^1.14.0",
     "markdown-it": "^13.0.2",
     "markdown-it-container": "^3.0.0",
+    "markdown-it-footnote": "^3.0.3",
     "markdown-to-txt": "^2.0.1",
     "mime": "^3.0.0",
     "n-readlines": "^1.0.1",

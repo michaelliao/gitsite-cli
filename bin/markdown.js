@@ -1,5 +1,6 @@
 import MarkdownIt from 'markdown-it';
 import MarkdownItContainer from 'markdown-it-container';
+import footnote_plugin from 'markdown-it-footnote';
 import hljs from 'highlight.js';
 import { katex } from '@mdit/plugin-katex';
 import { readdir } from 'node:fs/promises';
@@ -32,7 +33,8 @@ async function createMarkdown(opt) {
             linkify: true, // autoconvert URL-like text to links
             external_link: true, // add target="_blank" for external link
             lazy_image: true, // add loading="lazy" for image
-            math: true, // enable mathematical expressions 
+            math: true, // enable mathematical expressions
+            footnote: true, // enable footnate
         };
     }
     let plugin_names = await readdir('./bin/plugin');
@@ -129,6 +131,10 @@ async function createMarkdown(opt) {
 
     if (opt.math) {
         md.use(katex, { mhchem: true });
+    }
+
+    if (opt.footnote) {
+        md.use(footnote_plugin);
     }
 
     return {
