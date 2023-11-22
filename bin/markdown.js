@@ -1,9 +1,11 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readdir } from 'node:fs/promises';
 import MarkdownIt from 'markdown-it';
 import MarkdownItContainer from 'markdown-it-container';
 import footnote_plugin from 'markdown-it-footnote';
 import hljs from 'highlight.js';
 import { katex } from '@mdit/plugin-katex';
-import { readdir } from 'node:fs/promises';
 
 function getAttr(tokens, idx, attrName) {
     let index = tokens[idx].attrIndex(attrName);
@@ -37,7 +39,10 @@ async function createMarkdown(opt) {
             footnote: true, // enable footnate
         };
     }
-    let plugin_names = await readdir('./bin/plugin');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const plugin_dir = path.join(__dirname, 'plugin');
+    let plugin_names = await readdir(plugin_dir);
     plugin_names.sort();
     let codeBlockPlugins = [];
     for (let name of plugin_names) {

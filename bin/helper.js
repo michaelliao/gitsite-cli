@@ -18,6 +18,10 @@ function chapterURI(dir) {
     return [parseInt(groups[1]), groups[2]];
 }
 
+export function isFileExists(...paths) {
+    return existsSync(path.resolve(...paths));
+}
+
 async function markdownFileInfo(dir) {
     console.log(`markdown file dir: ${dir}`)
     let mdFile;

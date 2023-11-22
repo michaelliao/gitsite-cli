@@ -10,7 +10,7 @@ import Koa from 'koa';
 import Router from '@koa/router';
 
 import createMarkdown from './markdown.js';
-import { generateBookIndex, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, writeTextFile } from './helper.js';
+import { generateBookIndex, isFileExists, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, writeTextFile } from './helper.js';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
@@ -79,6 +79,19 @@ function findPrevNextChapter(chapterList, node) {
     return [prevChapter, nextChapter];
 }
 
+async function loadBeforeAndAfter(siteDir, book) {
+    let beforeMD = '', afterMD = '';
+    if (isFileExists(siteDir, 'books', book, 'before.md')) {
+        beforeMD = await loadTextFile(siteDir, 'books', book, 'before.md');
+        beforeMD = beforeMD + '\n\n';
+    }
+    if (isFileExists(siteDir, 'books', book, 'after.md')) {
+        afterMD = await loadTextFile(siteDir, 'books', book, 'after.md');
+        afterMD = '\n\n' + afterMD;
+    }
+    return [beforeMD, afterMD];
+}
+
 async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
     const buildJs = path.join(themeDir, jsFile);
     if (fsSync.existsSync(buildJs)) {
@@ -89,6 +102,12 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
         await build.default(templateContext, outputDir);
         process.chdir(cwd);
     }
+}
+
+async function buildContent(siteDir, node, beforeMD, afterMD) {
+    const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
+    const markdown = await createMarkdown();
+    return markdown.render(beforeMD + mdFileContent + afterMD);
 }
 
 async function buildGitSite(dir, output) {
@@ -121,6 +140,7 @@ async function buildGitSite(dir, output) {
         if (root.children.length === 0) {
             throw `Empty book ${book}`;
         }
+        let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
         let first = root.children[0];
         let redirect = `/books/${first.uri}.html`;
         const bookHtml = templateEngine.render('book.html', {
@@ -135,9 +155,7 @@ async function buildGitSite(dir, output) {
 
             const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             templateContext.__index__ = root;
-            const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
-            const markdown = await createMarkdown();
-            node.content = markdown.render(mdFileContent);
+            node.content = await buildContent(siteDir, node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
@@ -217,11 +235,10 @@ async function runGitSite(dir, port) {
             if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
-            let [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             templateContext.__index__ = root;
-            const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
-            const markdown = await createMarkdown();
-            node.content = markdown.render(mdFileContent);
+            let [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
+            let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+            node.content = await buildContent(siteDir, node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
@@ -256,9 +273,8 @@ async function runGitSite(dir, port) {
                 nextChapter = chapterList[nodeIndex + 1];
             }
             const templateContext = {};
-            const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
-            const markdown = await createMarkdown();
-            node.content = markdown.render(mdFileContent);
+            let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+            node.content = await buildContent(siteDir, node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
