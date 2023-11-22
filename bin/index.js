@@ -143,7 +143,7 @@ async function buildGitSite(dir, output) {
         let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
         let first = root.children[0];
         let redirect = `/books/${first.uri}.html`;
-        const bookHtml = templateEngine.render('book.html', {
+        const bookHtml = templateEngine.render('book_home.html', {
             redirect: redirect
         });
         await writeTextFile(path.join(outputDir, 'books', `${book}.html`), bookHtml);
@@ -154,14 +154,14 @@ async function buildGitSite(dir, output) {
             console.log(`> generate file: ${targetFile}`);
 
             const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
-            templateContext.__index__ = root;
+            templateContext.book_index = root;
             node.content = await buildContent(siteDir, node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
             // set production mode:
             templateContext.production = true;
-            const html = templateEngine.render('index.html', templateContext);
+            const html = templateEngine.render('book.html', templateContext);
             const htm = templateEngine.render('book_content.html', templateContext);
             await writeTextFile(targetFile, html);
             await writeTextFile(targetFile.substring(0, targetFile.length - 1), htm);
@@ -212,7 +212,7 @@ async function runGitSite(dir, port) {
             }
             let child = root.children[0];
             let redirect = `/books/${child.uri}.html`;
-            const html = templateEngine.render('book.html', {
+            const html = templateEngine.render('book_home.html', {
                 redirect: redirect
             });
             ctx.type = 'text/html; charset=utf-8';
@@ -235,14 +235,14 @@ async function runGitSite(dir, port) {
             if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
-            templateContext.__index__ = root;
+            templateContext.book_index = root;
             let [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
             node.content = await buildContent(siteDir, node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
-            const html = templateEngine.render('index.html', templateContext);
+            const html = templateEngine.render('book.html', templateContext);
             ctx.type = 'text/html; charset=utf-8';
             ctx.body = html;
         } catch (err) {

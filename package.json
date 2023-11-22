@@ -1,6 +1,6 @@
 {
   "name": "gitsite-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "GitSite Command Line Application",
   "author": "Michael Liao",
   "license": "GPL-3.0",
@@ -45,9 +45,7 @@
     "mime": "^3.0.0",
     "n-readlines": "^1.0.1",
     "nunjucks": "^3.2.4",
-    "yaml": "^2.3.4"
-  },
-  "devDependencies": {
+    "yaml": "^2.3.4",
     "tailwindcss": "^3.3.5"
   }
 }
