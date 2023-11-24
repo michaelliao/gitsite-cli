@@ -22,6 +22,26 @@ export function isFileExists(...paths) {
     return existsSync(path.resolve(...paths));
 }
 
+export function markdownTitle(mdFilePath) {
+    const liner = new LineByLine(mdFilePath);
+    let line, title = '';
+    while (line = liner.next()) {
+        let s = line.toString('utf8').trim();
+        if (s) {
+            if (s.startsWith('# ')) {
+                title = s.substring(2).trim();
+                break;
+            } else {
+                throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# Heading".`);
+            }
+        }
+    }
+    if (!title) {
+        throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# Heading".`);
+    }
+    return title;
+}
+
 async function markdownFileInfo(dir) {
     console.log(`markdown file dir: ${dir}`)
     let mdFile;
@@ -40,28 +60,22 @@ async function markdownFileInfo(dir) {
         mdFile = 'README.md';
     }
     const mdFilePath = path.resolve(dir, mdFile);
-    const liner = new LineByLine(mdFilePath);
-    let line, title = '';
-    while (line = liner.next()) {
-        let s = line.toString('utf8').trim();
-        if (s) {
-            if (s.startsWith('# ')) {
-                title = s.substring(2).trim();
-                break;
-            } else {
-                throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# Heading".`);
-            }
-        }
-    }
-    if (!title) {
-        throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# Heading".`);
-    }
-    return [mdFile, title];
+    return [mdFile, markdownTitle(mdFilePath)];
 }
 
 export async function getSubDirs(dir) {
-    let subDirs = (await fs.readdir(dir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
-    return subDirs;
+    return (await fs.readdir(dir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
+}
+
+export async function getFiles(dir, filterFn) {
+    return (await fs.readdir(dir, { withFileTypes: true }))
+        .filter(d => d.isFile())
+        .map(d => d.name)
+        .filter(filterFn);
+}
+
+export async function getMdFiles(dir) {
+    return (await getFiles(dir, name => name.endsWith('.md'))).map(name => name.substring(0, name.length - 3));
 }
 
 function flatternNode(array, node) {
@@ -101,12 +115,13 @@ export function findChapter(node, uri) {
 export async function generateBookIndex(siteDir, bookDirName) {
     const booksDir = path.resolve(siteDir, 'books');
     let bookUrlBase = `/books/${bookDirName}`;
+    let bookInfo = await loadYaml(siteDir, 'books', bookDirName, 'book.yml');
     let listDir = async (parent, dir, index) => {
         let fullDir = path.resolve(booksDir, dir);
         console.log(`scan dir: ${dir}, full: ${fullDir}`);
         let [order, uri] = parent === null ? [0, dir] : chapterURI(dir);
         console.log(`set order: ${order}, uri: ${uri}`);
-        let [file, title] = parent === null ? ['', bookDirName] : await markdownFileInfo(fullDir);
+        let [file, title] = parent === null ? ['', bookInfo.book.title] : await markdownFileInfo(fullDir);
         let item = {
             level: parent === null ? 0 : parent.level + 1,
             marker: parent === null ? '' : parent.marker ? parent.marker + '.' + (index + 1) : (index + 1).toString(),
@@ -146,6 +161,7 @@ export async function generateBookIndex(siteDir, bookDirName) {
         return item;
     }
     let root = await listDir(null, bookDirName, 0);
+    console.log(JSON.stringify(root, null, ' '));
     return root;
 }
 
