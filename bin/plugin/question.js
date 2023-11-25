@@ -77,7 +77,7 @@ export default function (md, type, args, str) {
     if (type !== 'question') {
         return null;
     }
-    console.log(`type=${type}, args=${JSON.stringify(args)}`);
+    console.debug(`type=${type}, args=${JSON.stringify(args)}`);
     let arg = args[0] || '';
     let arr = str.split(/\-{3,}/g);
     if (arr.length !== 2) {
@@ -125,7 +125,7 @@ ${inputs}
             return parseError(`date answer must be YYYY-MM-DD format`, str);
         }
         let ignorecase = arg === 'text' && args[1] === 'ignorecase';
-        console.log(`${ignorecase}: type=${type}, args=${JSON.stringify(args)}`);
+        console.debug(`${ignorecase}: type=${type}, args=${JSON.stringify(args)}`);
         let ok_exp = `let ok='${encodeString(a)}'===${js_input_value}`;
         if (ignorecase) {
             ok_exp = `let ok='${encodeString(a.toLowerCase())}'===${js_input_value}.toLowerCase()`;

@@ -43,7 +43,7 @@ export function markdownTitle(mdFilePath) {
 }
 
 async function markdownFileInfo(dir) {
-    console.log(`markdown file dir: ${dir}`)
+    console.debug(`markdown file dir: ${dir}`)
     let mdFile;
     const e1 = existsSync(path.resolve(dir, 'index.md'));
     const e2 = existsSync(path.resolve(dir, 'README.md'));
@@ -118,9 +118,9 @@ export async function generateBookIndex(siteDir, bookDirName) {
     let bookInfo = await loadYaml(siteDir, 'books', bookDirName, 'book.yml');
     let listDir = async (parent, dir, index) => {
         let fullDir = path.resolve(booksDir, dir);
-        console.log(`scan dir: ${dir}, full: ${fullDir}`);
+        console.debug(`scan dir: ${dir}, full: ${fullDir}`);
         let [order, uri] = parent === null ? [0, dir] : chapterURI(dir);
-        console.log(`set order: ${order}, uri: ${uri}`);
+        console.debug(`set order: ${order}, uri: ${uri}`);
         let [file, title] = parent === null ? ['', bookInfo.book.title] : await markdownFileInfo(fullDir);
         let item = {
             level: parent === null ? 0 : parent.level + 1,
@@ -161,7 +161,8 @@ export async function generateBookIndex(siteDir, bookDirName) {
         return item;
     }
     let root = await listDir(null, bookDirName, 0);
-    console.log(JSON.stringify(root, null, ' '));
+    console.debug(`${bookDirName} book index:
+` + JSON.stringify(root, null, ' '));
     return root;
 }
 

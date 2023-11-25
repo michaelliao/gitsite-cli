@@ -28,7 +28,6 @@ async function newGitSite() {
     if (gsName.trim() === '') {
         gsName = defaultName;
     }
-
     console.log(`new git site:
 directory: ${gsDir}
 name: ${gsName}
@@ -167,12 +166,13 @@ async function buildGitSite(dir, output) {
             templateEngine.render('book_home.html', { redirect: redirect })
         );
         let chapterList = flattenChapters(root);
-        console.log(JSON.stringify(chapterList, null, '  '));
+        console.debug(`${book} flattern chapters:
+` + JSON.stringify(chapterList, null, '  '));
         for (let node of chapterList) {
             const nodeDir = path.join(siteDir, 'books', `${node.dir}`);
             const htmlFile = path.join(outputDir, 'books', `${node.uri}`, 'index.html');
             const contentHtmlFile = path.join(outputDir, 'books', `${node.uri}`, 'content.html');
-            console.log(`> generate file: ${htmlFile}, ${contentHtmlFile}`);
+            console.debug(`generate file from chapter '${node.dir}': ${htmlFile}, ${contentHtmlFile}`);
 
             const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             const templateContext = await loadYaml(siteDir, 'site.yml');
@@ -189,11 +189,11 @@ async function buildGitSite(dir, output) {
         }
     }
     // generate pages:
-    const pages = await getMdFiles(path.join(siteDir, 'pages'));
+    const pages = await getSubDirs(path.join(siteDir, 'pages'));
     for (let page of pages) {
         console.log(`generate page: ${page}`);
-        const htmlFile = path.join(outputDir, 'pages', `${page}.html`);
-        const mdFilePath = path.join(siteDir, 'pages', `${page}.md`);
+        const htmlFile = path.join(outputDir, 'pages', `${page}`, 'index.html');
+        const mdFilePath = path.join(siteDir, 'pages', `${page}`, 'README.md');
         await writeTextFile(htmlFile,
             await markdownToPage(siteDir, templateEngine, mdFilePath, 'page.html', true));
         await copyStaticFiles(path.join(siteDir, 'pages'), path.join(outputDir, 'pages'));
@@ -235,6 +235,10 @@ async function runGitSite(dir, port) {
     // start koa http server:
     const app = new Koa();
     const router = new Router();
+    app.use(async (ctx, next) => {
+        console.log(`${ctx.request.method}: ${ctx.request.path}`);
+        await next();
+    });
     app.use(router.routes())
         .use(router.allowedMethods());
 
@@ -248,10 +252,10 @@ async function runGitSite(dir, port) {
         }
     });
 
-    router.get('/pages/:page.html', async ctx => {
+    router.get('/pages/:page/index.html', async ctx => {
         try {
             let page = ctx.params.page;
-            let mdFilePath = path.join(siteDir, 'pages', `${page}.md`);
+            let mdFilePath = path.join(siteDir, 'pages', `${page}`, 'README.md');
             if (!isFileExists(mdFilePath)) {
                 mdFilePath = path.join(siteDir, '404.md');
             }
@@ -358,7 +362,7 @@ async function runGitSite(dir, port) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
             let file = path.join(siteDir, 'books', node.dir, ctx.params.file);
-            console.log(`try file: ${file}`);
+            console.debug(`try file: ${file}`);
             if (isFileExists(file)) {
                 ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
                 ctx.body = await loadBinaryFile(file);
@@ -379,7 +383,7 @@ async function runGitSite(dir, port) {
             file = path.join(siteDir, 'layout', theme, ctx.request.path.substring(1));
         }
         const type = mime.getType(ctx.request.path) || 'application/octet-stream';
-        console.log(`try file: ${file}`);
+        console.debug(`try file: ${file}`);
         if (isFileExists(file)) {
             ctx.type = type;
             ctx.body = await loadBinaryFile(file);
@@ -404,6 +408,12 @@ function main() {
     const packageJsonFile = path.join(__dirname, '..', 'package.json');
     const packageJson = JSON.parse(fsSync.readFileSync(packageJsonFile, { encoding: 'utf8' }));
 
+    const setVerbose = (isVerbose) => {
+        if (!isVerbose) {
+            console.debug = () => { };
+        }
+    }
+
     program.name(packageJson.name)
         .description(packageJson.description)
         .version(packageJson.version);
@@ -416,7 +426,9 @@ function main() {
         .description('Run as static web site in local environment.')
         .option('-d, --dir <directory>', 'source directory.', '.')
         .option('-p, --port <port>', 'local server port.', '3000')
+        .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
+            setVerbose(options.verbose);
             await runGitSite(options.dir, parseInt(options.port));
         });
 
@@ -424,7 +436,9 @@ function main() {
         .description('Build static web site.')
         .option('-d, --dir <directory>', 'source directory.', '.')
         .option('-o, --output <directory>', 'output directory.', 'dist')
+        .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
+            setVerbose(options.verbose);
             await buildGitSite(options.dir, options.output);
         });
 

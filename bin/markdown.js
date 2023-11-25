@@ -47,7 +47,7 @@ async function createMarkdown(opt) {
     let codeBlockPlugins = [];
     for (let name of plugin_names) {
         if (name.endsWith('.js')) {
-            console.log(`auto import plugin: ${name}`);
+            console.debug(`auto import plugin: ${name}`);
             let mod = await import(`./plugin/${name}`);
             codeBlockPlugins.push(mod.default);
         }
@@ -148,7 +148,7 @@ async function createMarkdown(opt) {
             return md.render(str);
         },
         addContainer: (type) => {
-            console.log(`add container support: type = ${type}.`);
+            console.debug(`add container support: type = ${type}.`);
             let regex = RegExp(`^\\s*${type}\\s+(.*)\\s*$`);
             md.use(MarkdownItContainer, type, {
                 validate: (params) => {
