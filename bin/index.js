@@ -11,7 +11,7 @@ import Koa from 'koa';
 import Router from '@koa/router';
 
 import createMarkdown from './markdown.js';
-import { generateBookIndex, isFileExists, markdownTitle, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getMdFiles, getFiles, writeTextFile } from './helper.js';
+import { generateBookIndex, isFileExists, markdownTitle, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getFiles, writeTextFile } from './helper.js';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
@@ -105,7 +105,7 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
 }
 
 async function copyStaticFiles(src, dest) {
-    let files = await getFiles(src, name => !name.startsWith('.') && name !== 'index.md' && name !== 'README.md');
+    let files = await getFiles(src, name => !name.startsWith('.') && name !== 'README.md' && name !== 'index.html');
     for (let f of files) {
         let sFile = path.join(src, f);
         let dFile = path.join(dest, f);
@@ -192,22 +192,33 @@ async function buildGitSite(dir, output) {
     const pages = await getSubDirs(path.join(siteDir, 'pages'));
     for (let page of pages) {
         console.log(`generate page: ${page}`);
-        const htmlFile = path.join(outputDir, 'pages', `${page}`, 'index.html');
-        const mdFilePath = path.join(siteDir, 'pages', `${page}`, 'README.md');
+        const htmlFile = path.join(outputDir, 'pages', page, 'index.html');
+        const mdFilePath = path.join(siteDir, 'pages', page, 'README.md');
         await writeTextFile(htmlFile,
             await markdownToPage(siteDir, templateEngine, mdFilePath, 'page.html', true));
         await copyStaticFiles(path.join(siteDir, 'pages'), path.join(outputDir, 'pages'));
     }
     // generate index, 404 page:
-    for (let name of ['index', '404']) {
-        console.log(`generate ${name}.html`);
-        const htmlFile = path.join(outputDir, `${name}.html`);
-        const mdFilePath = path.join(siteDir, `${name}.md`);
+    let mapping = {
+        'README.md': 'index.html',
+        '404.md': '404.html',
+    };
+    for (let md in mapping) {
+        let html = mapping[md];
+        console.log(`generate: ${md} => ${html}`);
+        const mdFilePath = path.join(siteDir, md);
+        const htmlFile = path.join(outputDir, html);
         await writeTextFile(htmlFile,
             await markdownToPage(siteDir, templateEngine, mdFilePath, 'page.html', true));
-        await copyStaticFiles(siteDir, outputDir);
     }
-
+    // copy /static resources:
+    let srcStatic = path.join(siteDir, 'static');
+    if (isFileExists(srcStatic)) {
+        let destStatic = path.join(outputDir, 'static');
+        console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
+        fsSync.mkdirSync(destStatic);
+        await copyStaticFiles(srcStatic, destStatic);
+    }
     // run post-build.js:
     await runBuildScript(themeDir, 'post-build.mjs', siteInfo, outputDir);
     console.log(`Run nginx and visit http://localhost:8000\ndocker run --rm -p 8000:80 -v ${outputDir}:/usr/share/nginx/html nginx:latest`);
@@ -239,12 +250,11 @@ async function runGitSite(dir, port) {
         console.log(`${ctx.request.method}: ${ctx.request.path}`);
         await next();
     });
-    app.use(router.routes())
-        .use(router.allowedMethods());
+    app.use(router.routes()).use(router.allowedMethods());
 
     router.get('/', async ctx => {
         try {
-            const mdFilePath = path.join(siteDir, 'index.md');
+            const mdFilePath = path.join(siteDir, 'README.md');
             ctx.type = 'text/html; charset=utf-8';
             ctx.body = await markdownToPage(siteDir, templateEngine, mdFilePath, 'page.html');
         } catch (err) {
@@ -375,21 +385,28 @@ async function runGitSite(dir, port) {
     });
 
     router.get('/(.*)', async ctx => {
-        let file;
-        if (ctx.request.path.startsWith('/blog/')
-            || ctx.request.path.startsWith('/pages/')) {
-            file = path.join(siteDir, ctx.request.path.substring(1));
+        let file, p = ctx.request.path.substring(1);
+        if (p.startsWith('blog/')
+            || p.startsWith('pages/')) {
+            file = path.join(siteDir, p);
+            if (!isFileExists(file)) {
+                return sendError(404, ctx, 'File not found.');
+            }
+        } else if (p.startsWith('static/')) {
+            file = path.join(siteDir, p);
+            if (!isFileExists(file)) {
+                file = path.join(siteDir, 'layout', theme, p);
+            }
+            if (!isFileExists(file)) {
+                return sendError(404, ctx, 'File not found.');
+            }
         } else {
-            file = path.join(siteDir, 'layout', theme, ctx.request.path.substring(1));
+            return sendError(404, ctx, 'File not found.');
         }
         const type = mime.getType(ctx.request.path) || 'application/octet-stream';
         console.debug(`try file: ${file}`);
-        if (isFileExists(file)) {
-            ctx.type = type;
-            ctx.body = await loadBinaryFile(file);
-        } else {
-            sendError(404, ctx, 'File not found.');
-        }
+        ctx.type = type;
+        ctx.body = await loadBinaryFile(file);
     });
 
     app.on('error', err => {

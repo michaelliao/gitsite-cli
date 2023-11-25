@@ -44,23 +44,11 @@ export function markdownTitle(mdFilePath) {
 
 async function markdownFileInfo(dir) {
     console.debug(`markdown file dir: ${dir}`)
-    let mdFile;
-    const e1 = existsSync(path.resolve(dir, 'index.md'));
-    const e2 = existsSync(path.resolve(dir, 'README.md'));
-    if (e1 && e2) {
-        throw new Error(`Both "index.md" and "README.md" found in ${dir}.`);
+    let mdFile = 'README.md';
+    if (!existsSync(path.resolve(dir, mdFile))) {
+        throw new Error(`Markdown file "README.md" not found in ${dir}.`);
     }
-    if (!e1 && !e2) {
-        throw new Error(`Markdown file "index.md" or "README.md" not found in ${dir}.`);
-    }
-    if (e1) {
-        mdFile = 'index.md';
-    }
-    if (e2) {
-        mdFile = 'README.md';
-    }
-    const mdFilePath = path.resolve(dir, mdFile);
-    return [mdFile, markdownTitle(mdFilePath)];
+    return [mdFile, markdownTitle(path.resolve(dir, mdFile))];
 }
 
 export async function getSubDirs(dir) {
@@ -72,10 +60,6 @@ export async function getFiles(dir, filterFn) {
         .filter(d => d.isFile())
         .map(d => d.name)
         .filter(filterFn);
-}
-
-export async function getMdFiles(dir) {
-    return (await getFiles(dir, name => name.endsWith('.md'))).map(name => name.substring(0, name.length - 3));
 }
 
 function flatternNode(array, node) {
@@ -205,6 +189,8 @@ export async function loadYaml(...paths) {
         }
     };
     dupKey(obj);
+    console.debug(`loaded yaml:
+`+ JSON.stringify(obj, null, '  '));
     return obj;
 }
 
