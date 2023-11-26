@@ -81,12 +81,12 @@ function findPrevNextChapter(chapterList, node) {
 
 async function loadBeforeAndAfter(siteDir, book) {
     let beforeMD = '', afterMD = '';
-    if (isFileExists(siteDir, 'books', book, 'before.md')) {
-        beforeMD = await loadTextFile(siteDir, 'books', book, 'before.md');
+    if (isFileExists(siteDir, 'books', book, 'BEFORE.md')) {
+        beforeMD = await loadTextFile(siteDir, 'books', book, 'BEFORE.md');
         beforeMD = beforeMD + '\n\n';
     }
-    if (isFileExists(siteDir, 'books', book, 'after.md')) {
-        afterMD = await loadTextFile(siteDir, 'books', book, 'after.md');
+    if (isFileExists(siteDir, 'books', book, 'AFTER.md')) {
+        afterMD = await loadTextFile(siteDir, 'books', book, 'AFTER.md');
         afterMD = '\n\n' + afterMD;
     }
     return [beforeMD, afterMD];
