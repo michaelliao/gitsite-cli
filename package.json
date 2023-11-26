@@ -45,7 +45,7 @@
     "mime": "^3.0.0",
     "n-readlines": "^1.0.1",
     "nunjucks": "^3.2.4",
-    "yaml": "^2.3.4",
-    "tailwindcss": "^3.3.5"
+    "tailwindcss": "^3.3.5",
+    "yaml": "^2.3.4"
   }
 }
