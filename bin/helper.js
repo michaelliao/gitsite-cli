@@ -18,7 +18,7 @@ function chapterURI(dir) {
     return [parseInt(groups[1]), groups[2]];
 }
 
-export function isFileExists(...paths) {
+export function isExists(...paths) {
     return existsSync(path.resolve(...paths));
 }
 

@@ -11,7 +11,7 @@ import Koa from 'koa';
 import Router from '@koa/router';
 
 import createMarkdown from './markdown.js';
-import { generateBookIndex, isFileExists, markdownTitle, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getFiles, writeTextFile } from './helper.js';
+import { generateBookIndex, isExists, markdownTitle, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getFiles, writeTextFile } from './helper.js';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
@@ -81,11 +81,11 @@ function findPrevNextChapter(chapterList, node) {
 
 async function loadBeforeAndAfter(siteDir, book) {
     let beforeMD = '', afterMD = '';
-    if (isFileExists(siteDir, 'books', book, 'BEFORE.md')) {
+    if (isExists(siteDir, 'books', book, 'BEFORE.md')) {
         beforeMD = await loadTextFile(siteDir, 'books', book, 'BEFORE.md');
         beforeMD = beforeMD + '\n\n';
     }
-    if (isFileExists(siteDir, 'books', book, 'AFTER.md')) {
+    if (isExists(siteDir, 'books', book, 'AFTER.md')) {
         afterMD = await loadTextFile(siteDir, 'books', book, 'AFTER.md');
         afterMD = '\n\n' + afterMD;
     }
@@ -213,7 +213,7 @@ async function buildGitSite(dir, output) {
     }
     // copy /static resources:
     let srcStatic = path.join(siteDir, 'static');
-    if (isFileExists(srcStatic)) {
+    if (isExists(srcStatic)) {
         let destStatic = path.join(outputDir, 'static');
         console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
         fsSync.mkdirSync(destStatic);
@@ -266,7 +266,7 @@ async function runGitSite(dir, port) {
         try {
             let page = ctx.params.page;
             let mdFilePath = path.join(siteDir, 'pages', `${page}`, 'README.md');
-            if (!isFileExists(mdFilePath)) {
+            if (!isExists(mdFilePath)) {
                 mdFilePath = path.join(siteDir, '404.md');
             }
             ctx.type = 'text/html; charset=utf-8';
@@ -373,7 +373,7 @@ async function runGitSite(dir, port) {
             }
             let file = path.join(siteDir, 'books', node.dir, ctx.params.file);
             console.debug(`try file: ${file}`);
-            if (isFileExists(file)) {
+            if (isExists(file)) {
                 ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
                 ctx.body = await loadBinaryFile(file);
             } else {
@@ -389,15 +389,15 @@ async function runGitSite(dir, port) {
         if (p.startsWith('blog/')
             || p.startsWith('pages/')) {
             file = path.join(siteDir, p);
-            if (!isFileExists(file)) {
+            if (!isExists(file)) {
                 return sendError(404, ctx, 'File not found.');
             }
         } else if (p.startsWith('static/')) {
             file = path.join(siteDir, p);
-            if (!isFileExists(file)) {
+            if (!isExists(file)) {
                 file = path.join(siteDir, 'layout', theme, p);
             }
-            if (!isFileExists(file)) {
+            if (!isExists(file)) {
                 return sendError(404, ctx, 'File not found.');
             }
         } else {
