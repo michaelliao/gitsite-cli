@@ -131,7 +131,8 @@ async function generateHtmlForChapterContent(node, beforeMD, afterMD) {
     return markdown.render(beforeMD + mdFileContent + afterMD);
 }
 
-async function generateHtmlForPage(templateEngine, mdFilePath) {
+async function generateHtmlForPage(templateEngine, mdFile) {
+    const mdFilePath = path.join(process.env.siteDir, mdFile);
     const templateContext = await initTemplateContext();
     templateContext.title = markdownTitleAndSummary(mdFilePath)[0];
     templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
@@ -330,13 +331,18 @@ async function runGitSite(port) {
         }
     });
 
+    router.get('/404', async ctx => {
+        try {
+            ctx.type = 'text/html; charset=utf-8';
+            ctx.body = await generateHtmlForPage(templateEngine, '404.md');
+        } catch (err) {
+            sendError(400, ctx, err);
+        }
+    });
+
     router.get('/pages/:page/index.html', async ctx => {
         try {
-            let page = ctx.params.page;
-            let mdFilePath = path.join('pages', `${page}`, 'README.md');
-            if (!isExists(siteDir, mdFilePath)) {
-                mdFilePath = '404.md';
-            }
+            const mdFilePath = path.join('pages', `${ctx.params.page}`, 'README.md');
             ctx.type = 'text/html; charset=utf-8';
             ctx.body = await generateHtmlForPage(templateEngine, mdFilePath);
         } catch (err) {
