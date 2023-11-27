@@ -301,7 +301,7 @@ async function buildGitSite(output) {
     process.exit(0);
 }
 
-async function runGitSite(port) {
+async function previewGitSite(port) {
     const siteDir = process.env.siteDir;
     // check port:
     if (port < 1 || port > 65535) {
@@ -548,16 +548,16 @@ function main() {
         .description('Generate a new static web site.')
         .action(newGitSite);
 
-    program.command('run')
-        .description('Run as static web site in local environment.')
+    program.command('preview')
+        .description('Preview web site in local environment.')
         .option('-d, --dir <directory>', 'source directory.', '.')
         .option('-p, --port <port>', 'local server port.', '3000')
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
-            process.env.mode = 'run';
+            process.env.mode = 'preview';
             process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
-            await runGitSite(parseInt(options.port));
+            await previewGitSite(parseInt(options.port));
         });
 
     program.command('build')
