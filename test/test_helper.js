@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
 
 import { generateBookIndex, loadTextFile, loadBinaryFile, loadYaml } from '../bin/helper.js';
 
 test(`load yaml`, async (t) => {
-    let obj = await loadYaml('.', 'test/resources/sample.yml');
+    process.env.siteDir = path.resolve('.');
+    let obj = await loadYaml('test/resources/sample.yml');
     assert.equal(obj.site.name, 'GitSite');
     assert.equal(obj.site.version, 1);
     assert.equal(obj.site.author['full-name'], 'Crypto Michael');
@@ -14,5 +16,6 @@ test(`load yaml`, async (t) => {
 });
 
 test('generate book index', async (t) => {
-    await generateBookIndex('.', 'gitsite-guide');
+    process.env.siteDir = path.resolve('.');
+    await generateBookIndex('gitsite-guide');
 });

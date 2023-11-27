@@ -22,24 +22,33 @@ export function isExists(...paths) {
     return existsSync(path.resolve(...paths));
 }
 
-export function markdownTitle(mdFilePath) {
+export function markdownTitleAndSummary(mdFilePath) {
     const liner = new LineByLine(mdFilePath);
-    let line, title = '';
+    let line, title = '', summary = '';
     while (line = liner.next()) {
         let s = line.toString('utf8').trim();
         if (s) {
             if (s.startsWith('# ')) {
-                title = s.substring(2).trim();
-                break;
+                if (title === '') {
+                    title = s.substring(2).trim();
+                } else {
+                    break;
+                }
+            } else if (s.startsWith('> ')) {
+                if (title !== '') { // title must be read first
+                    summary = summary + ' ' + s.substring(2);
+                } else {
+                    break;
+                }
             } else {
-                throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# Heading".`);
+                break;
             }
         }
     }
     if (!title) {
-        throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# Heading".`);
+        throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# title".`);
     }
-    return title;
+    return [title, summary.trim()];
 }
 
 async function markdownFileInfo(dir) {
@@ -48,7 +57,8 @@ async function markdownFileInfo(dir) {
     if (!existsSync(path.resolve(dir, mdFile))) {
         throw new Error(`Markdown file "README.md" not found in ${dir}.`);
     }
-    return [mdFile, markdownTitle(path.resolve(dir, mdFile))];
+    let [title, summary] = markdownTitleAndSummary(path.resolve(dir, mdFile));
+    return [mdFile, title, summary];
 }
 
 export async function getSubDirs(dir) {
@@ -95,11 +105,83 @@ export function findChapter(node, uri) {
     return null;
 }
 
+function blogInfo(siteDir, name) {
+    const blogsDir = path.join(siteDir, 'blogs');
+    let cover = null;
+    for (let img of ['cover.jpg', 'cover.jpeg', 'cover.png', 'cover.webp', 'cover.gif', 'cover.svg']) {
+        if (isExists(path.join(blogsDir, name, img))) {
+            cover = img;
+            break;
+        }
+    }
+    if (!cover) {
+        throw `ERROR: blog ${name} does not contains a cover image (e.g. cover.jpg).`;
+    }
+    let [title, summary] = markdownTitleAndSummary(path.join(blogsDir, name, 'README.md'));
+    return {
+        dir: name,
+        uri: `/blogs/${name}/index.html`,
+        coverUri: `/blogs/${name}/${cover}`,
+        title: title,
+        summary: summary,
+        date: name.substring(0, 10)
+    };
+}
+
+export async function loadBlogInfo(name) {
+    const siteDir = process.env.siteDir;
+    const blogsDir = path.join(siteDir, 'blogs');
+    let subDirs = await getSubDirs(blogsDir);
+    let index = subDirs.findIndex(n => n === name);
+    if (index < 0) {
+        throw `ERROR: blog ${name} does not exist.`;
+    }
+    let blogDir = subDirs[index];
+    let prev = null, next = null;
+    if (index > 0) {
+        next = blogInfo(siteDir, subDirs[index - 1]);
+    }
+    if (index < subDirs.length - 1) {
+        prev = blogInfo(siteDir, subDirs[index + 1]);
+    }
+    let info = [blogInfo(siteDir, subDirs[index]), prev, next];
+    console.debug(`blog ${name}:
+` + JSON.stringify(info, null, '  '));
+    return info;
+}
+
+export function isValidDate(ds) {
+    let dt = new Date(ds);
+    return dt.toISOString().startsWith(ds);
+}
+
+// generate blog index as json, newest first:
+export async function generateBlogIndex() {
+    const blogsDir = path.join(process.env.siteDir, 'blogs');
+    let subDirs = await getSubDirs(blogsDir);
+    let blogs = [];
+    subDirs.sort().forEach(name => {
+        let groups = /^(\d{4}\-\d{2}\-\d{2})([\-\.\_].+)?$/.exec(name);
+        if (groups === null) {
+            throw `ERROR: invalid blog folder name: ${name}`;
+        }
+        if (!isValidDate(groups[1])) {
+            throw `ERROR: invalid blog folder name: ${name}`;
+        }
+        blogs.push(blogInfo(process.env.siteDir, name));
+    });
+    blogs.reverse();
+    console.debug(`blogs index:
+`+ JSON.stringify(blogs, null, '  '));
+    return blogs;
+}
+
 // generate book index tree as json:
-export async function generateBookIndex(siteDir, bookDirName) {
+export async function generateBookIndex(bookDirName) {
+    const siteDir = process.env.siteDir;
     const booksDir = path.resolve(siteDir, 'books');
     let bookUrlBase = `/books/${bookDirName}`;
-    let bookInfo = await loadYaml(siteDir, 'books', bookDirName, 'book.yml');
+    let bookInfo = await loadYaml('books', bookDirName, 'book.yml');
     let listDir = async (parent, dir, index) => {
         let fullDir = path.resolve(booksDir, dir);
         console.debug(`scan dir: ${dir}, full: ${fullDir}`);
@@ -165,7 +247,7 @@ export function createTemplateEngine(dir) {
 
 // load yaml file as object:
 export async function loadYaml(...paths) {
-    let str = await loadTextFile(...paths);
+    let str = await loadTextFile(process.env.siteDir, ...paths);
     let obj = YAML.parse(str);
     // copy key 'abc-xyz' to 'abcXyz' recursively:
     let dupKey = (obj) => {
