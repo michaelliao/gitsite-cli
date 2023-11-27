@@ -279,13 +279,18 @@ async function buildGitSite(output) {
             await copyStaticFiles(srcStatic, destStatic);
         }
     }
-    // copy favicon:
+    // copy special files like favicon.ico:
     {
-        const srcFavicon = path.join(siteDir, 'favicon.ico');
-        if (isExists(srcFavicon)) {
-            const destFavicon = path.join(outputDir, 'favicon.ico');
-            console.log(`copy: ${srcFavicon} to: ${destFavicon}`);
-            fsSync.copyFileSync(srcFavicon, destFavicon);
+        const specialFiles = siteInfo.build && siteInfo.build.copy || ['favicon.ico', 'robots.txt'];
+        for (let specialFile of specialFiles) {
+            const srcFile = path.join(siteDir, specialFile);
+            if (isExists(srcFile)) {
+                const destFile = path.join(outputDir, specialFile);
+                console.log(`copy: ${srcFile} to: ${destFile}`);
+                fsSync.copyFileSync(srcFile, destFile);
+            } else {
+                console.warn(`skipped: file not found: ${specialFile}`);
+            }
         }
     }
     // run post-build.js:
