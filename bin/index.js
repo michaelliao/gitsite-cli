@@ -168,7 +168,7 @@ async function buildGitSite(output) {
     // create template engine:
     const siteInfo = await loadYaml('site.yml');
     const theme = siteInfo.site && siteInfo.site.theme || 'default';
-    const templateEngine = createTemplateEngine(path.resolve(siteDir, 'layout', theme));
+    const templateEngine = createTemplateEngine(path.join(siteDir, 'layout', theme));
     // theme dir:
     const themeDir = path.join(siteDir, 'layout', theme);
     // run pre-build.js:
@@ -427,7 +427,7 @@ async function runGitSite(port) {
                 ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
                 ctx.body = await loadBinaryFile(file);
             } else {
-                sendError(404, ctx, 'File not found.');
+                sendError(404, ctx, `File not found: ${file}`);
             }
         } catch (err) {
             sendError(400, ctx, err);
@@ -441,7 +441,7 @@ async function runGitSite(port) {
             file = path.join(siteDir, p);
             console.debug(`try file: ${file}`);
             if (!isExists(file)) {
-                return sendError(404, ctx, 'File not found.');
+                return sendError(404, ctx, `File not found: ${file}`);
             }
         } else if (p.startsWith('static/')) {
             file = path.join(siteDir, p);
@@ -451,13 +451,12 @@ async function runGitSite(port) {
                 console.debug(`try file: ${file}`);
             }
             if (!isExists(file)) {
-                return sendError(404, ctx, 'File not found.');
+                return sendError(404, ctx, `File not found: ${file}`);
             }
         } else {
-            return sendError(404, ctx, 'File not found.');
+            return sendError(404, ctx, `File not found: ${file}`);
         }
         const type = mime.getType(ctx.request.path) || 'application/octet-stream';
-        console.debug(`try file: ${file}`);
         ctx.type = type;
         ctx.body = await loadBinaryFile(file);
     });

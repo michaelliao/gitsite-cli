@@ -53,12 +53,12 @@ export function markdownTitleAndSummary(mdFilePath) {
 
 async function markdownFileInfo(dir) {
     console.debug(`markdown file dir: ${dir}`)
-    let mdFile = 'README.md';
-    if (!existsSync(path.resolve(dir, mdFile))) {
+    const mdFilePath = path.join(dir, 'README.md');
+    if (!existsSync(mdFilePath)) {
         throw new Error(`Markdown file "README.md" not found in ${dir}.`);
     }
-    let [title, summary] = markdownTitleAndSummary(path.resolve(dir, mdFile));
-    return [mdFile, title, summary];
+    let [title, summary] = markdownTitleAndSummary(mdFilePath);
+    return ['README.md', title, summary];
 }
 
 export async function getSubDirs(dir) {
