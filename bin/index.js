@@ -73,7 +73,7 @@ function redirectHtml(redirect) {
 
 async function initTemplateContext() {
     const templateContext = await loadYaml('site.yml');
-    templateContext.production = process.env.production;
+    templateContext.mode = process.env.mode;
     return templateContext;
 }
 
@@ -156,6 +156,19 @@ async function generateHtmlForBlogIndex(templateEngine) {
     return templateEngine.render('blog_list.html', templateContext);
 }
 
+async function generateHtmlForBlog(name, templateEngine) {
+    const siteDir = process.env.siteDir;
+    let [blogInfo, prev, next] = await loadBlogInfo(name);
+    const markdown = await createMarkdown();
+    const mdFileContent = await loadTextFile(siteDir, 'blogs', name, 'README.md');
+    const templateContext = await initTemplateContext();
+    templateContext.blog = blogInfo;
+    templateContext.blog.content = markdown.render(mdFileContent);
+    templateContext.prevBlog = prev;
+    templateContext.nextBlog = next;
+    return templateEngine.render('blog.html', templateContext);
+}
+
 async function buildGitSite(output) {
     const siteDir = process.env.siteDir;
     const outputDir = path.resolve(output);
@@ -226,7 +239,16 @@ async function buildGitSite(output) {
         await writeTextFile(htmlFile, await generateHtmlForBlogIndex(templateEngine));
     }
     // generate blogs:
-
+    const blogs = await generateBlogIndex();
+    if (blogs.length === 0) {
+        throw 'No blog posted.';
+    }
+    for (let blog of blogs) {
+        console.log(`generate blog: ${blog.dir}`);
+        const htmlFile = path.join(outputDir, 'blogs', blog.dir, 'index.html');
+        await writeTextFile(htmlFile, await generateHtmlForBlog(blog.dir, templateEngine));
+        await copyStaticFiles(path.join(siteDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
+    }
     // generate index, 404 page:
     let mapping = {
         'README.md': 'index.html',
@@ -312,17 +334,8 @@ async function runGitSite(port) {
     router.get('/blogs/:name/index.html', async ctx => {
         console.debug(`process blog: name = ${ctx.params.name}`);
         try {
-            let name = ctx.params.name;
-            let [blogInfo, prev, next] = await loadBlogInfo(name);
-            const markdown = await createMarkdown();
-            const mdFileContent = await loadTextFile(siteDir, 'blogs', name, 'README.md');
-            const templateContext = await initTemplateContext();
-            templateContext.blog = blogInfo;
-            templateContext.blog.content = markdown.render(mdFileContent);
-            templateContext.prevBlog = prev;
-            templateContext.nextBlog = next;
             ctx.type = 'text/html; charset=utf-8';
-            ctx.body = templateEngine.render('blog.html', templateContext);
+            ctx.body = await generateHtmlForBlog(ctx.params.name, templateEngine);
         } catch (err) {
             sendError(400, ctx, err);
         }
@@ -456,8 +469,7 @@ async function runGitSite(port) {
         } else {
             return sendError(404, ctx, `File not found: ${file}`);
         }
-        const type = mime.getType(ctx.request.path) || 'application/octet-stream';
-        ctx.type = type;
+        ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
         ctx.body = await loadBinaryFile(file);
     });
 
@@ -507,7 +519,7 @@ function main() {
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
-            process.env.production = false;
+            process.env.mode = 'run';
             process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
             await runGitSite(parseInt(options.port));
         });
@@ -519,7 +531,7 @@ function main() {
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
-            process.env.production = true;
+            process.env.mode = 'build';
             process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
             await buildGitSite(options.output);
         });
