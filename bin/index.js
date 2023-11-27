@@ -22,7 +22,7 @@ async function newGitSite() {
     if (gsDir === '') {
         gsDir = process.cwd();
     }
-    let defaultName = path.basename(gsDir);
+    const defaultName = path.basename(gsDir);
     let gsName = await rl.question(`name of GitSite (default to ${defaultName}): `);
     gsName = gsName.trim();
     if (gsName.trim() === '') {
@@ -79,7 +79,7 @@ async function initTemplateContext() {
 
 function findPrevNextChapter(chapterList, node) {
     let prevChapter = null, nextChapter = null;
-    let nodeIndex = chapterList.findIndex(c => c === node);
+    const nodeIndex = chapterList.findIndex(c => c === node);
     if (nodeIndex > 0) {
         prevChapter = chapterList[nodeIndex - 1];
     }
@@ -115,10 +115,10 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
 }
 
 async function copyStaticFiles(src, dest) {
-    let files = await getFiles(src, name => !name.startsWith('.') && name !== 'README.md' && name !== 'index.html');
+    const files = await getFiles(src, name => !name.startsWith('.') && name !== 'README.md' && name !== 'index.html');
     for (let f of files) {
-        let sFile = path.join(src, f);
-        let dFile = path.join(dest, f);
+        const sFile = path.join(src, f);
+        const dFile = path.join(dest, f);
         console.log(`copy: ${sFile} to: ${dFile}`);
         fsSync.copyFileSync(sFile, dFile);
     }
@@ -158,7 +158,7 @@ async function generateHtmlForBlogIndex(templateEngine) {
 
 async function generateHtmlForBlog(name, templateEngine) {
     const siteDir = process.env.siteDir;
-    let [blogInfo, prev, next] = await loadBlogInfo(name);
+    const [blogInfo, prev, next] = await loadBlogInfo(name);
     const markdown = await createMarkdown();
     const mdFileContent = await loadTextFile(siteDir, 'blogs', name, 'README.md');
     const templateContext = await initTemplateContext();
@@ -187,50 +187,54 @@ async function buildGitSite(output) {
     // run pre-build.js:
     await runBuildScript(themeDir, 'pre-build.mjs', siteInfo, outputDir);
     // generate books:
-    const books = await getSubDirs(path.join(siteDir, 'books'));
-    for (let book of books) {
-        console.log(`generate book: ${book}`);
-        let root = await generateBookIndex(book);
-        if (root.children.length === 0) {
-            throw `Empty book ${book}`;
-        }
-        let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
-        let first = root.children[0];
-        let redirect = `/books/${first.uri}/index.html`;
-        await writeTextFile(
-            path.join(outputDir, 'books', `${book}`, 'index.html'),
-            redirectHtml(redirect)
-        );
-        let chapterList = flattenChapters(root);
-        console.debug(`${book} flattern chapters:
+    {
+        const books = await getSubDirs(path.join(siteDir, 'books'));
+        for (let book of books) {
+            console.log(`generate book: ${book}`);
+            const root = await generateBookIndex(book);
+            if (root.children.length === 0) {
+                throw `Empty book ${book}`;
+            }
+            const [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+            const first = root.children[0];
+            const redirect = `/books/${first.uri}/index.html`;
+            await writeTextFile(
+                path.join(outputDir, 'books', `${book}`, 'index.html'),
+                redirectHtml(redirect)
+            );
+            const chapterList = flattenChapters(root);
+            console.debug(`${book} flattern chapters:
 ` + JSON.stringify(chapterList, null, '  '));
-        for (let node of chapterList) {
-            const nodeDir = path.join(siteDir, 'books', `${node.dir}`);
-            const htmlFile = path.join(outputDir, 'books', `${node.uri}`, 'index.html');
-            const contentHtmlFile = path.join(outputDir, 'books', `${node.uri}`, 'content.html');
-            console.debug(`generate file from chapter '${node.dir}': ${htmlFile}, ${contentHtmlFile}`);
+            for (let node of chapterList) {
+                const nodeDir = path.join(siteDir, 'books', `${node.dir}`);
+                const htmlFile = path.join(outputDir, 'books', `${node.uri}`, 'index.html');
+                const contentHtmlFile = path.join(outputDir, 'books', `${node.uri}`, 'content.html');
+                console.debug(`generate file from chapter '${node.dir}': ${htmlFile}, ${contentHtmlFile}`);
 
-            const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
-            const templateContext = await initTemplateContext();
-            templateContext.book_index = root;
-            node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
-            templateContext.chapter = node;
-            templateContext.prevChapter = prevChapter;
-            templateContext.nextChapter = nextChapter;
-            await writeTextFile(htmlFile, templateEngine.render('book.html', templateContext));
-            await writeTextFile(contentHtmlFile, templateEngine.render('book_content.html', templateContext));
-            await copyStaticFiles(nodeDir, path.join(outputDir, 'books', `${node.uri}`));
+                const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
+                const templateContext = await initTemplateContext();
+                templateContext.book_index = root;
+                node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
+                templateContext.chapter = node;
+                templateContext.prevChapter = prevChapter;
+                templateContext.nextChapter = nextChapter;
+                await writeTextFile(htmlFile, templateEngine.render('book.html', templateContext));
+                await writeTextFile(contentHtmlFile, templateEngine.render('book_content.html', templateContext));
+                await copyStaticFiles(nodeDir, path.join(outputDir, 'books', `${node.uri}`));
+            }
         }
     }
     // generate pages:
-    const pages = await getSubDirs(path.join(siteDir, 'pages'));
-    for (let page of pages) {
-        console.log(`generate page: ${page}`);
-        const htmlFile = path.join(outputDir, 'pages', page, 'index.html');
-        const mdFilePath = path.join(siteDir, 'pages', page, 'README.md');
-        await writeTextFile(htmlFile,
-            await generateHtmlForPage(templateEngine, mdFilePath));
-        await copyStaticFiles(path.join(siteDir, 'pages'), path.join(outputDir, 'pages'));
+    {
+        const pages = await getSubDirs(path.join(siteDir, 'pages'));
+        for (let page of pages) {
+            console.log(`generate page: ${page}`);
+            const htmlFile = path.join(outputDir, 'pages', page, 'index.html');
+            const mdFilePath = path.join(siteDir, 'pages', page, 'README.md');
+            await writeTextFile(htmlFile,
+                await generateHtmlForPage(templateEngine, mdFilePath));
+            await copyStaticFiles(path.join(siteDir, 'pages'), path.join(outputDir, 'pages'));
+        }
     }
     // generate blog index:
     {
@@ -239,36 +243,50 @@ async function buildGitSite(output) {
         await writeTextFile(htmlFile, await generateHtmlForBlogIndex(templateEngine));
     }
     // generate blogs:
-    const blogs = await generateBlogIndex();
-    if (blogs.length === 0) {
-        throw 'No blog posted.';
-    }
-    for (let blog of blogs) {
-        console.log(`generate blog: ${blog.dir}`);
-        const htmlFile = path.join(outputDir, 'blogs', blog.dir, 'index.html');
-        await writeTextFile(htmlFile, await generateHtmlForBlog(blog.dir, templateEngine));
-        await copyStaticFiles(path.join(siteDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
+    {
+        const blogs = await generateBlogIndex();
+        if (blogs.length === 0) {
+            throw 'No blog posted.';
+        }
+        for (let blog of blogs) {
+            console.log(`generate blog: ${blog.dir}`);
+            const htmlFile = path.join(outputDir, 'blogs', blog.dir, 'index.html');
+            await writeTextFile(htmlFile, await generateHtmlForBlog(blog.dir, templateEngine));
+            await copyStaticFiles(path.join(siteDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
+        }
     }
     // generate index, 404 page:
-    let mapping = {
-        'README.md': 'index.html',
-        '404.md': '404.html',
-    };
-    for (let md in mapping) {
-        let html = mapping[md];
-        console.log(`generate: ${md} => ${html}`);
-        const mdFilePath = path.join(siteDir, md);
-        const htmlFile = path.join(outputDir, html);
-        await writeTextFile(htmlFile,
-            await generateHtmlForPage(templateEngine, mdFilePath));
+    {
+        const mapping = {
+            'README.md': 'index.html',
+            '404.md': '404.html',
+        };
+        for (let md in mapping) {
+            const html = mapping[md];
+            console.log(`generate: ${md} => ${html}`);
+            const mdFilePath = path.join(siteDir, md);
+            const htmlFile = path.join(outputDir, html);
+            await writeTextFile(htmlFile, await generateHtmlForPage(templateEngine, mdFilePath));
+        }
     }
-    // copy /static resources:
-    let srcStatic = path.join(siteDir, 'static');
-    if (isExists(srcStatic)) {
-        let destStatic = path.join(outputDir, 'static');
-        console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
-        fsSync.mkdirSync(destStatic);
-        await copyStaticFiles(srcStatic, destStatic);
+    // copy static resources:
+    {
+        const srcStatic = path.join(siteDir, 'static');
+        if (isExists(srcStatic)) {
+            const destStatic = path.join(outputDir, 'static');
+            console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
+            fsSync.mkdirSync(destStatic);
+            await copyStaticFiles(srcStatic, destStatic);
+        }
+    }
+    // copy favicon:
+    {
+        const srcFavicon = path.join(siteDir, 'favicon.ico');
+        if (isExists(srcFavicon)) {
+            const destFavicon = path.join(outputDir, 'favicon.ico');
+            console.log(`copy: ${srcFavicon} to: ${destFavicon}`);
+            fsSync.copyFileSync(srcFavicon, destFavicon);
+        }
     }
     // run post-build.js:
     await runBuildScript(themeDir, 'post-build.mjs', siteInfo, outputDir);
@@ -466,7 +484,14 @@ async function runGitSite(port) {
             if (!isExists(file)) {
                 return sendError(404, ctx, `File not found: ${file}`);
             }
-        } else {
+        } else if (p === 'favicon.ico') {
+            file = path.join(siteDir, p);
+            console.debug(`try file: ${file}`);
+            if (!isExists(file)) {
+                return sendError(404, ctx, `File not found: ${file}`);
+            }
+        }
+        else {
             return sendError(404, ctx, `File not found: ${file}`);
         }
         ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
