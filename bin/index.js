@@ -124,17 +124,18 @@ async function copyStaticFiles(src, dest) {
     }
 }
 
-async function buildChapterContent(siteDir, node, beforeMD, afterMD) {
+async function generateHtmlForChapterContent(node, beforeMD, afterMD) {
+    const siteDir = process.env.siteDir;
     const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
     const markdown = await createMarkdown();
     return markdown.render(beforeMD + mdFileContent + afterMD);
 }
 
-async function markdownToPage(siteDir, templateEngine, mdFilePath, viewPath) {
+async function generateHtmlForPage(templateEngine, mdFilePath) {
     const templateContext = await initTemplateContext();
     templateContext.title = markdownTitleAndSummary(mdFilePath)[0];
     templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
-    return templateEngine.render(viewPath, templateContext);
+    return templateEngine.render('page.html', templateContext);
 }
 
 async function generateHtmlForBlogIndex(templateEngine) {
@@ -154,7 +155,6 @@ async function generateHtmlForBlogIndex(templateEngine) {
     }
     return templateEngine.render('blog_list.html', templateContext);
 }
-
 
 async function buildGitSite(output) {
     const siteDir = process.env.siteDir;
@@ -200,7 +200,7 @@ async function buildGitSite(output) {
             const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             const templateContext = await initTemplateContext();
             templateContext.book_index = root;
-            node.content = await buildChapterContent(siteDir, node, beforeMD, afterMD);
+            node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
@@ -216,7 +216,7 @@ async function buildGitSite(output) {
         const htmlFile = path.join(outputDir, 'pages', page, 'index.html');
         const mdFilePath = path.join(siteDir, 'pages', page, 'README.md');
         await writeTextFile(htmlFile,
-            await markdownToPage(siteDir, templateEngine, mdFilePath, 'page.html'));
+            await generateHtmlForPage(templateEngine, mdFilePath));
         await copyStaticFiles(path.join(siteDir, 'pages'), path.join(outputDir, 'pages'));
     }
     // generate blog index:
@@ -238,7 +238,7 @@ async function buildGitSite(output) {
         const mdFilePath = path.join(siteDir, md);
         const htmlFile = path.join(outputDir, html);
         await writeTextFile(htmlFile,
-            await markdownToPage(siteDir, templateEngine, mdFilePath, 'page.html'));
+            await generateHtmlForPage(templateEngine, mdFilePath));
     }
     // copy /static resources:
     let srcStatic = path.join(siteDir, 'static');
@@ -279,7 +279,7 @@ async function runGitSite(port) {
     router.get('/', async ctx => {
         try {
             ctx.type = 'text/html; charset=utf-8';
-            ctx.body = await markdownToPage(siteDir, templateEngine, 'README.md', 'page.html');
+            ctx.body = await generateHtmlForPage(templateEngine, 'README.md');
         } catch (err) {
             sendError(400, ctx, err);
         }
@@ -293,7 +293,7 @@ async function runGitSite(port) {
                 mdFilePath = '404.md';
             }
             ctx.type = 'text/html; charset=utf-8';
-            ctx.body = await markdownToPage(siteDir, templateEngine, mdFilePath, 'page.html');
+            ctx.body = await generateHtmlForPage(templateEngine, mdFilePath);
         } catch (err) {
             sendError(400, ctx, err);
         }
@@ -360,7 +360,7 @@ async function runGitSite(port) {
             templateContext.book_index = root;
             let [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
-            node.content = await buildChapterContent(siteDir, node, beforeMD, afterMD);
+            node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
@@ -397,7 +397,7 @@ async function runGitSite(port) {
             }
             const templateContext = await initTemplateContext();
             let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
-            node.content = await buildChapterContent(siteDir, node, beforeMD, afterMD);
+            node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
             templateContext.nextChapter = nextChapter;
