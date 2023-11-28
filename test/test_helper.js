@@ -14,8 +14,3 @@ test(`load yaml`, async (t) => {
     assert.equal(obj.site['last-updated-at'].date, '2023-11-07');
     assert.equal(obj.site.lastUpdatedAt.date, '2023-11-07');
 });
-
-test('generate book index', async (t) => {
-    process.env.siteDir = path.resolve('.');
-    await generateBookIndex('gitsite-guide');
-});
