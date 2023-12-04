@@ -22,6 +22,40 @@ export function isExists(...paths) {
     return existsSync(path.resolve(...paths));
 }
 
+// return ['title', 'summary', 'md-content']
+export function markdownTitleSummaryContent(mdFilePath) {
+    const liner = new LineByLine(mdFilePath);
+    let line, title = '', summary = '';
+    while (line = liner.next()) {
+        let s = line.toString('utf8').trim();
+        if (s) {
+            if (s.startsWith('# ')) {
+                if (title === '') {
+                    title = s.substring(2).trim();
+                } else {
+                    break;
+                }
+            } else if (s.startsWith('> ')) {
+                if (title !== '') { // title must be read first
+                    summary = summary + ' ' + s.substring(2);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    if (!title) {
+        throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# title".`);
+    }
+    let content = [];
+    while (line = liner.next()) {
+        content.push(line.toString('utf8'));
+    }
+    return [title, summary.trim(), content.join('\n')];
+}
+
 export function markdownTitleAndSummary(mdFilePath) {
     const liner = new LineByLine(mdFilePath);
     let line, title = '', summary = '';
@@ -117,13 +151,14 @@ function blogInfo(siteDir, name) {
     if (!cover) {
         throw `ERROR: blog ${name} does not contains a cover image (e.g. cover.jpg).`;
     }
-    let [title, summary] = markdownTitleAndSummary(path.join(blogsDir, name, 'README.md'));
+    let [title, summary, content] = markdownTitleSummaryContent(path.join(blogsDir, name, 'README.md'));
     return {
         dir: name,
         uri: `/blogs/${name}/index.html`,
         coverUri: `/blogs/${name}/${cover}`,
         title: title,
         summary: summary,
+        content: content,
         date: name.substring(0, 10)
     };
 }

@@ -9,9 +9,11 @@ import { Command } from 'commander';
 import mime from 'mime';
 import Koa from 'koa';
 import Router from '@koa/router';
+import lunr from 'lunr';
 
 import createMarkdown from './markdown.js';
-import { generateBookIndex, generateBlogIndex, isExists, markdownTitleAndSummary, loadBlogInfo, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getFiles, writeTextFile, isValidDate } from './helper.js';
+import { markdownToTxt } from 'markdown-to-txt';
+import { generateBookIndex, generateBlogIndex, isExists, markdownTitleAndSummary, loadBlogInfo, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getFiles, writeTextFile, isValidDate, markdownTitleSummaryContent } from './helper.js';
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
@@ -124,6 +126,59 @@ async function copyStaticFiles(src, dest) {
     }
 }
 
+async function generateSearchIndex() {
+    console.log(`generate search index...`);
+    const docs = [];
+    const siteDir = process.env.siteDir;
+    const books = await getSubDirs(path.join(siteDir, 'books'));
+    for (let book of books) {
+        console.log(`generate search index for book: ${book}`);
+        const root = await generateBookIndex(book);
+        if (root.children.length === 0) {
+            throw `Empty book ${book}`;
+        }
+        const [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+        const chapterList = flattenChapters(root);
+        for (let node of chapterList) {
+            const mdFile = path.join(siteDir, 'books', node.dir, 'README.md');
+            const [title, summary, mdContent] = markdownTitleSummaryContent(mdFile);
+            const uri = path.join('/books', node.uri, 'index.html');
+            const content = markdownToTxt(mdContent);
+            console.log(`build index for ${uri}...`);
+            docs.push({
+                uri: uri,
+                title: title,
+                summary: summary,
+                content: content
+            });
+        }
+    }
+    const mapping = {};
+    let index = 0;
+    const searchIndex = lunr(function () {
+        this.ref('id');
+        this.field('title');
+        this.field('summary');
+        this.field('content');
+        this.metadataWhitelist = ['position'];
+        for (let doc of docs) {
+            let id = index.toString(36);
+            mapping[id] = doc.uri;
+            index++;
+            doc.id = id;
+            this.add(doc);
+        }
+    });
+    const dump = JSON.stringify({
+        index: searchIndex,
+        mapping: mapping
+    });
+    const kb = dump.length >> 10;
+    console.log(`search index (${kb} kb):
+` + dump.substring(0, 100) + '...');
+    return 'window.__search__=' + dump;
+}
+
 async function generateHtmlForChapterContent(node, beforeMD, afterMD) {
     const siteDir = process.env.siteDir;
     const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
@@ -134,7 +189,7 @@ async function generateHtmlForChapterContent(node, beforeMD, afterMD) {
 async function generateHtmlForPage(templateEngine, mdFile) {
     const mdFilePath = path.join(process.env.siteDir, mdFile);
     const templateContext = await initTemplateContext();
-    templateContext.title = markdownTitleAndSummary(mdFilePath)[0];
+    templateContext.title = markdownTitleSummaryContent(mdFilePath)[0];
     templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
     return templateEngine.render('page.html', templateContext);
 }
@@ -231,10 +286,9 @@ async function buildGitSite(output) {
         for (let page of pages) {
             console.log(`generate page: ${page}`);
             const htmlFile = path.join(outputDir, 'pages', page, 'index.html');
-            const mdFilePath = path.join(siteDir, 'pages', page, 'README.md');
             await writeTextFile(htmlFile,
-                await generateHtmlForPage(templateEngine, mdFilePath));
-            await copyStaticFiles(path.join(siteDir, 'pages'), path.join(outputDir, 'pages'));
+                await generateHtmlForPage(templateEngine, path.join('pages', page, 'README.md')));
+            await copyStaticFiles(path.join(siteDir, 'pages', page), path.join(outputDir, 'pages', page));
         }
     }
     // generate blog index:
@@ -256,6 +310,12 @@ async function buildGitSite(output) {
             await copyStaticFiles(path.join(siteDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
         }
     }
+    // generate search index:
+    {
+        const searchIndex = await generateSearchIndex();
+        const jsFile = path.join(outputDir, 'static', 'search-index.js');
+        await writeTextFile(jsFile, searchIndex);
+    }
     // generate index, 404 page:
     {
         const mapping = {
@@ -265,9 +325,8 @@ async function buildGitSite(output) {
         for (let md in mapping) {
             const html = mapping[md];
             console.log(`generate: ${md} => ${html}`);
-            const mdFilePath = path.join(siteDir, md);
             const htmlFile = path.join(outputDir, html);
-            await writeTextFile(htmlFile, await generateHtmlForPage(templateEngine, mdFilePath));
+            await writeTextFile(htmlFile, await generateHtmlForPage(templateEngine, md));
         }
     }
     // copy static resources:
@@ -276,7 +335,9 @@ async function buildGitSite(output) {
         if (isExists(srcStatic)) {
             const destStatic = path.join(outputDir, 'static');
             console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
-            fsSync.mkdirSync(destStatic);
+            if (!isExists(destStatic)) {
+                fsSync.mkdirSync(destStatic);
+            }
             await copyStaticFiles(srcStatic, destStatic);
         }
     }
@@ -301,7 +362,7 @@ async function buildGitSite(output) {
     process.exit(0);
 }
 
-async function previewGitSite(port) {
+async function serveGitSite(port) {
     const siteDir = process.env.siteDir;
     // check port:
     if (port < 1 || port > 65535) {
@@ -312,6 +373,8 @@ async function previewGitSite(port) {
     const siteInfo = await loadYaml('site.yml');
     const theme = siteInfo.site && siteInfo.site.theme || 'default';
     const templateEngine = createTemplateEngine(path.join(siteDir, 'layout', theme));
+
+    const searchIndex = await generateSearchIndex();
 
     // start koa http server:
     const app = new Koa();
@@ -338,6 +401,11 @@ async function previewGitSite(port) {
         } catch (err) {
             sendError(400, ctx, err);
         }
+    });
+
+    router.get('/static/search-index.js', async ctx => {
+        ctx.type = 'text/javascript; charset=utf-8';
+        ctx.body = searchIndex;
     });
 
     router.get('/pages/:page/index.html', async ctx => {
@@ -548,16 +616,18 @@ function main() {
         .description('Generate a new static web site.')
         .action(newGitSite);
 
-    program.command('preview')
-        .description('Preview web site in local environment.')
+    program.command('serve')
+        .description('Run a web server to preview the site in local environment.')
         .option('-d, --dir <directory>', 'source directory.', '.')
         .option('-p, --port <port>', 'local server port.', '3000')
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
-            process.env.mode = 'preview';
+            process.env.mode = 'serve';
             process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
-            await previewGitSite(parseInt(options.port));
+            process.chdir(process.env.siteDir);
+            console.log(`site dir: ${process.env.siteDir}`);
+            await serveGitSite(parseInt(options.port));
         });
 
     program.command('build')
@@ -569,7 +639,11 @@ function main() {
             setVerbose(options.verbose);
             process.env.mode = 'build';
             process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
-            await buildGitSite(options.output);
+            process.env.outputDir = path.resolve(options.output);
+            process.chdir(process.env.siteDir);
+            console.log(`site dir: ${process.env.siteDir}`);
+            console.log(`output dir: ${process.env.outputDir}`);
+            await buildGitSite(process.env.outputDir);
         });
 
     program.parse();
