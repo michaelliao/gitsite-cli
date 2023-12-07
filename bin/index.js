@@ -75,7 +75,8 @@ function redirectHtml(redirect) {
 
 async function initTemplateContext() {
     const templateContext = await loadYaml('site.yml');
-    templateContext.mode = process.env.mode;
+    templateContext.__mode__ = process.env.mode;
+    templateContext.__timestamp__ = process.env.timestamp;
     return templateContext;
 }
 
@@ -192,6 +193,14 @@ async function generateHtmlForPage(templateEngine, mdFile) {
     templateContext.title = markdownTitleSummaryContent(mdFilePath)[0];
     templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
     return templateEngine.render('page.html', templateContext);
+}
+
+async function generateHtmlForIndexPage(templateEngine, mdFile) {
+    const mdFilePath = path.join(process.env.siteDir, mdFile);
+    const templateContext = await initTemplateContext();
+    templateContext.title = markdownTitleSummaryContent(mdFilePath)[0];
+    templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
+    return templateEngine.render('index.html', templateContext);
 }
 
 async function generateHtmlForBlogIndex(templateEngine) {
@@ -326,7 +335,10 @@ async function buildGitSite(output) {
             const html = mapping[md];
             console.log(`generate: ${md} => ${html}`);
             const htmlFile = path.join(outputDir, html);
-            await writeTextFile(htmlFile, await generateHtmlForPage(templateEngine, md));
+            await writeTextFile(htmlFile,
+                md === 'README.md' ?
+                    await generateHtmlForIndexPage(templateEngine, md) :
+                    await generateHtmlForPage(templateEngine, md));
         }
     }
     // copy static resources:
@@ -381,17 +393,17 @@ async function serveGitSite(port) {
     const router = new Router();
     app.use(async (ctx, next) => {
         console.log(`${ctx.request.method}: ${ctx.request.path}`);
-        await next();
+        try {
+            await next();
+        } catch (err) {
+            sendError(400, ctx, err);
+        }
     });
     app.use(router.routes()).use(router.allowedMethods());
 
     router.get('/', async ctx => {
-        try {
-            ctx.type = 'text/html; charset=utf-8';
-            ctx.body = await generateHtmlForPage(templateEngine, 'README.md');
-        } catch (err) {
-            sendError(400, ctx, err);
-        }
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = await generateHtmlForIndexPage(templateEngine, 'README.md');
     });
 
     router.get('/404', async ctx => {
@@ -404,8 +416,12 @@ async function serveGitSite(port) {
     });
 
     router.get('/static/search-index.js', async ctx => {
-        ctx.type = 'text/javascript; charset=utf-8';
-        ctx.body = searchIndex;
+        try {
+            ctx.type = 'text/javascript; charset=utf-8';
+            ctx.body = searchIndex;
+        } catch (err) {
+            sendError(400, ctx, err);
+        }
     });
 
     router.get('/pages/:page/index.html', async ctx => {
@@ -545,36 +561,40 @@ async function serveGitSite(port) {
     });
 
     router.get('/(.*)', async ctx => {
-        let file, p = ctx.request.path.substring(1);
-        if (p.startsWith('blogs/')
-            || p.startsWith('pages/')) {
-            file = path.join(siteDir, p);
-            console.debug(`try file: ${file}`);
-            if (!isExists(file)) {
-                return sendError(404, ctx, `File not found: ${file}`);
-            }
-        } else if (p.startsWith('static/')) {
-            file = path.join(siteDir, p);
-            console.debug(`try file: ${file}`);
-            if (!isExists(file)) {
-                file = path.join(siteDir, 'layout', theme, p);
+        try {
+            let file, p = ctx.request.path.substring(1);
+            if (p.startsWith('blogs/')
+                || p.startsWith('pages/')) {
+                file = path.join(siteDir, p);
                 console.debug(`try file: ${file}`);
+                if (!isExists(file)) {
+                    return sendError(404, ctx, `File not found: ${file}`);
+                }
+            } else if (p.startsWith('static/')) {
+                file = path.join(siteDir, p);
+                console.debug(`try file: ${file}`);
+                if (!isExists(file)) {
+                    file = path.join(siteDir, 'layout', theme, p);
+                    console.debug(`try file: ${file}`);
+                }
+                if (!isExists(file)) {
+                    return sendError(404, ctx, `File not found: ${file}`);
+                }
+            } else if (p === 'favicon.ico') {
+                file = path.join(siteDir, p);
+                console.debug(`try file: ${file}`);
+                if (!isExists(file)) {
+                    return sendError(404, ctx, `File not found: ${file}`);
+                }
             }
-            if (!isExists(file)) {
+            else {
                 return sendError(404, ctx, `File not found: ${file}`);
             }
-        } else if (p === 'favicon.ico') {
-            file = path.join(siteDir, p);
-            console.debug(`try file: ${file}`);
-            if (!isExists(file)) {
-                return sendError(404, ctx, `File not found: ${file}`);
-            }
+            ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
+            ctx.body = await loadBinaryFile(file);
+        } catch (err) {
+            sendError(400, ctx, err);
         }
-        else {
-            return sendError(404, ctx, `File not found: ${file}`);
-        }
-        ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
-        ctx.body = await loadBinaryFile(file);
     });
 
     app.on('error', err => {
@@ -623,6 +643,7 @@ function main() {
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
+            process.env.timestamp = Date.now();
             process.env.mode = 'serve';
             process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
             process.chdir(process.env.siteDir);
@@ -637,6 +658,7 @@ function main() {
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
+            process.env.timestamp = Date.now();
             process.env.mode = 'build';
             process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
             process.env.outputDir = path.resolve(options.output);

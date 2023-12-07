@@ -95,8 +95,12 @@ async function markdownFileInfo(dir) {
     return ['README.md', title, summary];
 }
 
-export async function getSubDirs(dir) {
-    return (await fs.readdir(dir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
+export async function getSubDirs(dir, filterFn) {
+    let names = (await fs.readdir(dir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
+    if (filterFn) {
+        names = names.filter(filterFn);
+    }
+    return names;
 }
 
 export async function getFiles(dir, filterFn) {
