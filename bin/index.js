@@ -5,6 +5,7 @@ import readline from 'node:readline/promises';
 import * as fsSync from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import _ from 'lodash';
 import { Command } from 'commander';
 import mime from 'mime';
 import Koa from 'koa';
@@ -14,6 +15,38 @@ import lunr from 'lunr';
 import createMarkdown from './markdown.js';
 import { markdownToTxt } from 'markdown-to-txt';
 import { generateBookIndex, generateBlogIndex, isExists, markdownTitleAndSummary, loadBlogInfo, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getFiles, writeTextFile, isValidDate, markdownTitleSummaryContent } from './helper.js';
+
+const DEFAULT_CONFIG = {
+    site: {
+        title: 'GitSite',
+        description: 'Powered by GitSite',
+        keywords: 'gitsite, git',
+        theme: 'default',
+        navigation: [],
+        contact: {
+            name: 'Git Site',
+            github: 'https://github.com/michaelliao/gitsite'
+        },
+        blogs: {
+            title: 'Latest Updates'
+        },
+        books: {
+            indexMarker: true
+        },
+        search: {
+            languages: []
+        }
+    },
+    build: {
+        copy: ['favicon.ico', 'robots.txt', 'ads.txt']
+    }
+};
+
+async function loadConfig() {
+    let config = await loadYaml('site.yml');
+    _.defaultsDeep(config, DEFAULT_CONFIG);
+    return config;
+}
 
 async function newGitSite() {
     console.log('prepare generate new git site...');
@@ -74,7 +107,7 @@ function redirectHtml(redirect) {
 }
 
 async function initTemplateContext() {
-    const templateContext = await loadYaml('site.yml');
+    const templateContext = await loadConfig();
     templateContext.__mode__ = process.env.mode;
     templateContext.__timestamp__ = process.env.timestamp;
     return templateContext;
@@ -154,9 +187,34 @@ async function generateSearchIndex() {
             });
         }
     }
+    const config = await loadConfig();
+    let languages = config.site.search.languages;
+    console.log(`use languages for search: ${languages}`);
+    if (languages.indexOf('en') < 0) {
+        languages.unshift('en');
+    }
+    if (languages.length > 1) {
+        const stemmer = await import('lunr-languages/lunr.stemmer.support.js');
+        stemmer.default(lunr);
+        const multi = await import('lunr-languages/lunr.multi.js');
+        multi.default(lunr);
+        for (let lang of languages) {
+            if (lang !== 'en') {
+                if (lang === 'ja' || lang === 'jp') {
+                    const tinyseg = await import('lunr-languages/tinyseg.js');
+                    tinyseg.default(lunr);
+                }
+                const language = await import(`lunr-languages/lunr.${lang}.js`);
+                language.default(lunr);
+            }
+        }
+    }
     const mapping = {};
     let index = 0;
     const searchIndex = lunr(function () {
+        if (languages.length > 1) {
+            this.use(lunr.multiLanguage(...languages));
+        }
         this.ref('id');
         this.field('title');
         this.field('summary');
@@ -244,13 +302,13 @@ async function buildGitSite(output) {
     }
     fsSync.mkdirSync(outputDir);
     // create template engine:
-    const siteInfo = await loadYaml('site.yml');
-    const theme = siteInfo.site && siteInfo.site.theme || 'default';
+    const config = await loadConfig();
+    const theme = config.site.theme;
     const templateEngine = createTemplateEngine(path.join(siteDir, 'layout', theme));
     // theme dir:
     const themeDir = path.join(siteDir, 'layout', theme);
     // run pre-build.js:
-    await runBuildScript(themeDir, 'pre-build.mjs', siteInfo, outputDir);
+    await runBuildScript(themeDir, 'pre-build.mjs', config, outputDir);
     // generate books:
     {
         const books = await getSubDirs(path.join(siteDir, 'books'));
@@ -355,7 +413,7 @@ async function buildGitSite(output) {
     }
     // copy special files like favicon.ico:
     {
-        const specialFiles = siteInfo.build && siteInfo.build.copy || ['favicon.ico', 'robots.txt'];
+        const specialFiles = config.build.copy;
         for (let specialFile of specialFiles) {
             const srcFile = path.join(siteDir, specialFile);
             if (isExists(srcFile)) {
@@ -368,7 +426,7 @@ async function buildGitSite(output) {
         }
     }
     // run post-build.js:
-    await runBuildScript(themeDir, 'post-build.mjs', siteInfo, outputDir);
+    await runBuildScript(themeDir, 'post-build.mjs', config, outputDir);
     console.log(`Run nginx and visit http://localhost:8000\ndocker run --rm -p 8000:80 -v ${outputDir}:/usr/share/nginx/html nginx:latest`);
     console.log('done.');
     process.exit(0);
@@ -382,8 +440,8 @@ async function serveGitSite(port) {
         process.exit(1);
     }
     // create template engine:
-    const siteInfo = await loadYaml('site.yml');
-    const theme = siteInfo.site && siteInfo.site.theme || 'default';
+    const config = await loadConfig();
+    const theme = config.site.theme;
     const templateEngine = createTemplateEngine(path.join(siteDir, 'layout', theme));
 
     const searchIndex = await generateSearchIndex();
