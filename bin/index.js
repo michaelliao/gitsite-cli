@@ -8,13 +8,14 @@ import { fileURLToPath } from 'node:url';
 import _ from 'lodash';
 import { Command } from 'commander';
 import mime from 'mime';
+import nunjucks from 'nunjucks';
 import Koa from 'koa';
 import Router from '@koa/router';
 import lunr from 'lunr';
 
 import createMarkdown from './markdown.js';
 import { markdownToTxt } from 'markdown-to-txt';
-import { generateBookIndex, generateBlogIndex, isExists, markdownTitleAndSummary, loadBlogInfo, loadBinaryFile, loadYaml, createTemplateEngine, loadTextFile, flattenChapters, getSubDirs, getFiles, writeTextFile, isValidDate, markdownTitleSummaryContent } from './helper.js';
+import { copyStaticFiles, isExists, loadBinaryFile, loadYaml, loadTextFile, flattenChapters, getSubDirs, markdownFileInfo, writeTextFile, isValidDate, markdownTitleSummaryContent } from './helper.js';
 
 const DEFAULT_CONFIG = {
     site: {
@@ -46,6 +47,62 @@ async function loadConfig() {
     let config = await loadYaml('site.yml');
     _.defaultsDeep(config, DEFAULT_CONFIG);
     return config;
+}
+
+function chapterURI(dir) {
+    let base = path.basename(dir);
+    let groups = /^(\d{1,8})[\-\.\_](.+)$/.exec(base);
+    if (groups === null) {
+        console.warn(`WARNING: folder will be sort at last for there is no order that can extract from name: ${dir}`);
+        return [100_000_000, base];
+    }
+    return [parseInt(groups[1]), groups[2]];
+}
+
+function blogInfo(siteDir, name) {
+    const blogsDir = path.join(siteDir, 'blogs');
+    let cover = null;
+    for (let img of ['cover.jpg', 'cover.jpeg', 'cover.png', 'cover.webp', 'cover.gif', 'cover.svg']) {
+        if (isExists(path.join(blogsDir, name, img))) {
+            cover = img;
+            break;
+        }
+    }
+    if (!cover) {
+        throw `ERROR: blog ${name} does not contains a cover image (e.g. cover.jpg).`;
+    }
+    let [title, summary, content] = markdownTitleSummaryContent(path.join(blogsDir, name, 'README.md'));
+    return {
+        dir: name,
+        uri: `/blogs/${name}/index.html`,
+        coverUri: `/blogs/${name}/${cover}`,
+        title: title,
+        summary: summary,
+        content: content,
+        date: name.substring(0, 10)
+    };
+}
+
+async function loadBlogInfo(name) {
+    const siteDir = process.env.siteDir;
+    const blogsDir = path.join(siteDir, 'blogs');
+    let subDirs = await getSubDirs(blogsDir);
+    let index = subDirs.findIndex(n => n === name);
+    if (index < 0) {
+        throw `ERROR: blog ${name} does not exist.`;
+    }
+    let blogDir = subDirs[index];
+    let prev = null, next = null;
+    if (index > 0) {
+        next = blogInfo(siteDir, subDirs[index - 1]);
+    }
+    if (index < subDirs.length - 1) {
+        prev = blogInfo(siteDir, subDirs[index + 1]);
+    }
+    let info = [blogInfo(siteDir, subDirs[index]), prev, next];
+    console.debug(`blog ${name}:
+` + JSON.stringify(info, null, '  '));
+    return info;
 }
 
 async function newGitSite() {
@@ -150,14 +207,94 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
     }
 }
 
-async function copyStaticFiles(src, dest) {
-    const files = await getFiles(src, name => !name.startsWith('.') && name !== 'README.md' && name !== 'index.html');
-    for (let f of files) {
-        const sFile = path.join(src, f);
-        const dFile = path.join(dest, f);
-        console.log(`copy: ${sFile} to: ${dFile}`);
-        fsSync.copyFileSync(sFile, dFile);
+// generate blog index as json, newest first:
+async function generateBlogIndex() {
+    const blogsDir = path.join(process.env.siteDir, 'blogs');
+    let subDirs = await getSubDirs(blogsDir);
+    let blogs = [];
+    subDirs.sort().forEach(name => {
+        let groups = /^(\d{4}\-\d{2}\-\d{2})([\-\.\_].+)?$/.exec(name);
+        if (groups === null) {
+            throw `ERROR: invalid blog folder name: ${name}`;
+        }
+        if (!isValidDate(groups[1])) {
+            throw `ERROR: invalid blog folder name: ${name}`;
+        }
+        blogs.push(blogInfo(process.env.siteDir, name));
+    });
+    blogs.reverse();
+    console.debug(`blogs index:
+`+ JSON.stringify(blogs, null, '  '));
+    return blogs;
+}
+
+// generate book index tree as json:
+async function generateBookIndex(bookDirName) {
+    const siteDir = process.env.siteDir;
+    const booksDir = path.resolve(siteDir, 'books');
+    let bookUrlBase = `/books/${bookDirName}`;
+    let bookInfo = await loadYaml('books', bookDirName, 'book.yml');
+    let listDir = async (parent, dir, index) => {
+        let fullDir = path.resolve(booksDir, dir);
+        console.debug(`scan dir: ${dir}, full: ${fullDir}`);
+        let [order, uri] = parent === null ? [0, dir] : chapterURI(dir);
+        console.debug(`set order: ${order}, uri: ${uri}`);
+        let [file, title] = parent === null ? ['', bookInfo.book.title] : await markdownFileInfo(fullDir);
+        let item = {
+            level: parent === null ? 0 : parent.level + 1,
+            marker: parent === null ? '' : parent.marker ? parent.marker + '.' + (index + 1) : (index + 1).toString(),
+            dir: dir,
+            file: parent === null ? null : file,
+            order: order,
+            title: title,
+            uri: parent === null ? uri : parent.uri + '/' + uri,
+            children: []
+        };
+        let subDirs = await getSubDirs(fullDir);
+        if (subDirs.length > 0) {
+            subDirs.sort((s1, s2) => {
+                let c1 = chapterURI(s1);
+                let c2 = chapterURI(s2);
+                if (c1[0] === c2[0]) {
+                    if (c1[1] === c2[1]) {
+                        return s1.localeCompare(s2);
+                    }
+                    return c1[1].localeCompare(c2[1]);
+                }
+                return c1[0] - c2[0];
+            });
+            let subIndex = 0;
+            for (let subDir of subDirs) {
+                let child = await listDir(item, path.join(dir, subDir), subIndex);
+                item.children.push(child);
+                subIndex++;
+            }
+            // check children's uri:
+            let dup = item.children.map(c => c.uri).filter((item, index, arr) => arr.indexOf(item) !== index);
+            if (dup.length > 0) {
+                let err = new Error(`Duplicate chapter names "${dup[0]}" under "${dir}".`);
+                throw err;
+            }
+        }
+        return item;
     }
+    let root = await listDir(null, bookDirName, 0);
+    console.debug(`${bookDirName} book index:
+` + JSON.stringify(root, null, ' '));
+    return root;
+}
+
+// create nunjucks template engine:
+function createTemplateEngine(dir) {
+    let loader = new nunjucks.FileSystemLoader(dir, {
+        watch: true
+    });
+    let env = new nunjucks.Environment(loader, {
+        autoescape: true,
+        lstripBlocks: true,
+        throwOnUndefined: true
+    });
+    return env;
 }
 
 async function generateSearchIndex() {
@@ -190,6 +327,9 @@ async function generateSearchIndex() {
     const config = await loadConfig();
     let languages = config.site.search.languages;
     console.log(`use languages for search: ${languages}`);
+    if (languages.indexOf('jp') >= 0) {
+        languages[languages.indexOf('jp')] = 'ja';
+    }
     if (languages.indexOf('en') < 0) {
         languages.unshift('en');
     }
@@ -198,12 +338,10 @@ async function generateSearchIndex() {
         stemmer.default(lunr);
         const multi = await import('lunr-languages/lunr.multi.js');
         multi.default(lunr);
+        const tinyseg = await import('lunr-languages/tinyseg.js');
+        tinyseg.default(lunr);
         for (let lang of languages) {
             if (lang !== 'en') {
-                if (lang === 'ja' || lang === 'jp') {
-                    const tinyseg = await import('lunr-languages/tinyseg.js');
-                    tinyseg.default(lunr);
-                }
                 const language = await import(`lunr-languages/lunr.${lang}.js`);
                 language.default(lunr);
             }
@@ -214,6 +352,18 @@ async function generateSearchIndex() {
     const searchIndex = lunr(function () {
         if (languages.length > 1) {
             this.use(lunr.multiLanguage(...languages));
+        }
+        if (languages.indexOf('zh') >= 0 || languages.indexOf('ja') >= 0) {
+            this.tokenizer = function (x) {
+                let t = lunr.tokenizer(x);
+                if (languages.indexOf('zh') >= 0) {
+                    t = t.concat(lunr.zh.tokenizer(x));
+                }
+                if (languages.indexOf('ja') >= 0) {
+                    t = t.concat(lunr.ja.tokenizer(x));
+                }
+                return t;
+            };
         }
         this.ref('id');
         this.field('title');
@@ -234,7 +384,7 @@ async function generateSearchIndex() {
     });
     const kb = dump.length >> 10;
     console.log(`search index (${kb} kb):
-` + dump.substring(0, 100) + '...');
+` + dump);
     return 'window.__search__=' + dump;
 }
 
@@ -664,13 +814,21 @@ async function serveGitSite(port) {
     console.log(`server is running at port ${port}...`);
 }
 
-function normalizeAndCheckSiteDir(dir) {
-    const siteDir = path.resolve(dir);
-    if (!fsSync.existsSync(siteDir)) {
+function normalizeAndCheckDir(dir) {
+    const d = path.resolve(dir);
+    if (!fsSync.existsSync(d)) {
         console.error(`dir not exist: ${dir}`);
         process.exit(1);
     }
-    return siteDir;
+    return d;
+}
+
+function normalizeAndMkDir(dir) {
+    const d = path.resolve(dir);
+    if (!fsSync.existsSync(d)) {
+        fsSync.mkdirSync(d);
+    }
+    return d;
 }
 
 function main() {
@@ -703,9 +861,11 @@ function main() {
             setVerbose(options.verbose);
             process.env.timestamp = Date.now();
             process.env.mode = 'serve';
-            process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
+            process.env.siteDir = normalizeAndCheckDir(options.dir);
+            process.env.cacheDir = normalizeAndMkDir('.cache');
             process.chdir(process.env.siteDir);
             console.log(`site dir: ${process.env.siteDir}`);
+            console.log(`cache dir: ${process.env.cacheDir}`);
             await serveGitSite(parseInt(options.port));
         });
 
@@ -718,11 +878,12 @@ function main() {
             setVerbose(options.verbose);
             process.env.timestamp = Date.now();
             process.env.mode = 'build';
-            process.env.siteDir = normalizeAndCheckSiteDir(options.dir);
+            process.env.siteDir = normalizeAndCheckDir(options.dir);
+            process.env.cacheDir = normalizeAndMkDir('.cache');
             process.env.outputDir = path.resolve(options.output);
             process.chdir(process.env.siteDir);
             console.log(`site dir: ${process.env.siteDir}`);
-            console.log(`output dir: ${process.env.outputDir}`);
+            console.log(`cache dir: ${process.env.cacheDir}`);
             await buildGitSite(process.env.outputDir);
         });
 

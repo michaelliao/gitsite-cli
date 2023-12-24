@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
-import { generateBookIndex, loadTextFile, loadBinaryFile, loadYaml } from '../bin/helper.js';
+import { loadYaml } from '../bin/helper.js';
 
 test(`load yaml`, async (t) => {
     process.env.siteDir = path.resolve('.');
