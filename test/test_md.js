@@ -12,6 +12,12 @@ async function check_file(name) {
     assert.equal(md.render(src), html);
 }
 
+process.env.disableCache = true;
+process.env.cacheDir = path.join(process.cwd(), '.cache');
+if (!existsSync(process.env.cacheDir)) {
+    mkdirSync(process.env.cacheDir);
+}
+
 const tests = readdirSync('test/resources').filter(name => name.endsWith('.md')).map(name => name.substring(0, name.length - 3));
 
 for (let name of tests) {

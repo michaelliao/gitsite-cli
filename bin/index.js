@@ -442,9 +442,9 @@ async function generateHtmlForBlog(name, templateEngine) {
     return templateEngine.render('blog.html', templateContext);
 }
 
-async function buildGitSite(output) {
+async function buildGitSite() {
     const siteDir = process.env.siteDir;
-    const outputDir = path.resolve(output);
+    const outputDir = process.env.outputDir;
     console.log(`build git site: ${siteDir} to: ${outputDir}`);
     if (fsSync.existsSync(outputDir)) {
         console.warn(`clean exist output dir: ${outputDir}`);
@@ -884,7 +884,8 @@ function main() {
             process.chdir(process.env.siteDir);
             console.log(`site dir: ${process.env.siteDir}`);
             console.log(`cache dir: ${process.env.cacheDir}`);
-            await buildGitSite(process.env.outputDir);
+            console.log(`output dir: ${process.env.outputDir}`);
+            await buildGitSite();
         });
 
     program.parse();
