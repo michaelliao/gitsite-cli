@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-
-import { readdirSync } from 'node:fs';
+import path from 'node:path';
+import { existsSync, readdirSync } from 'node:fs';
 import createMarkdown from '../bin/markdown.js';
 import { readFile } from 'node:fs/promises';
 
