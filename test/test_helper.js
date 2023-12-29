@@ -5,7 +5,7 @@ import path from 'node:path';
 import { loadYaml } from '../bin/helper.js';
 
 test(`load yaml`, async (t) => {
-    process.env.siteDir = path.resolve('.');
+    process.env.sourceDir = path.resolve('.');
     let obj = await loadYaml('test/resources/sample.yml');
     assert.equal(obj.site.name, 'GitSite');
     assert.equal(obj.site.version, 1);

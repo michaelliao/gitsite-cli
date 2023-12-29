@@ -44,8 +44,8 @@ const DEFAULT_CONFIG = {
 };
 
 async function loadConfig() {
-    const siteDir = process.env.siteDir;
-    let config = await loadYaml(siteDir, 'site.yml');
+    const sourceDir = process.env.sourceDir;
+    let config = await loadYaml(sourceDir, 'site.yml');
     _.defaultsDeep(config, DEFAULT_CONFIG);
     return config;
 }
@@ -60,8 +60,8 @@ function chapterURI(dir) {
     return [parseInt(groups[1]), groups[2]];
 }
 
-function blogInfo(siteDir, name) {
-    const blogsDir = path.join(siteDir, 'blogs');
+function blogInfo(sourceDir, name) {
+    const blogsDir = path.join(sourceDir, 'blogs');
     let cover = null;
     for (let img of ['cover.jpg', 'cover.jpeg', 'cover.png', 'cover.webp', 'cover.gif', 'cover.svg']) {
         if (isExists(path.join(blogsDir, name, img))) {
@@ -85,8 +85,8 @@ function blogInfo(siteDir, name) {
 }
 
 async function loadBlogInfo(name) {
-    const siteDir = process.env.siteDir;
-    const blogsDir = path.join(siteDir, 'blogs');
+    const sourceDir = process.env.sourceDir;
+    const blogsDir = path.join(sourceDir, 'blogs');
     let subDirs = await getSubDirs(blogsDir);
     let index = subDirs.findIndex(n => n === name);
     if (index < 0) {
@@ -95,12 +95,12 @@ async function loadBlogInfo(name) {
     let blogDir = subDirs[index];
     let prev = null, next = null;
     if (index > 0) {
-        next = blogInfo(siteDir, subDirs[index - 1]);
+        next = blogInfo(sourceDir, subDirs[index - 1]);
     }
     if (index < subDirs.length - 1) {
-        prev = blogInfo(siteDir, subDirs[index + 1]);
+        prev = blogInfo(sourceDir, subDirs[index + 1]);
     }
-    let info = [blogInfo(siteDir, subDirs[index]), prev, next];
+    let info = [blogInfo(sourceDir, subDirs[index]), prev, next];
     console.debug(`blog ${name}:
 ` + JSON.stringify(info, null, '  '));
     return info;
@@ -183,14 +183,14 @@ function findPrevNextChapter(chapterList, node) {
     return [prevChapter, nextChapter];
 }
 
-async function loadBeforeAndAfter(siteDir, book) {
+async function loadBeforeAndAfter(sourceDir, book) {
     let beforeMD = '', afterMD = '';
-    if (isExists(siteDir, 'books', book, 'BEFORE.md')) {
-        beforeMD = await loadTextFile(siteDir, 'books', book, 'BEFORE.md');
+    if (isExists(sourceDir, 'books', book, 'BEFORE.md')) {
+        beforeMD = await loadTextFile(sourceDir, 'books', book, 'BEFORE.md');
         beforeMD = beforeMD + '\n\n';
     }
-    if (isExists(siteDir, 'books', book, 'AFTER.md')) {
-        afterMD = await loadTextFile(siteDir, 'books', book, 'AFTER.md');
+    if (isExists(sourceDir, 'books', book, 'AFTER.md')) {
+        afterMD = await loadTextFile(sourceDir, 'books', book, 'AFTER.md');
         afterMD = '\n\n' + afterMD;
     }
     return [beforeMD, afterMD];
@@ -210,7 +210,7 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
 
 // generate blog index as json, newest first:
 async function generateBlogIndex() {
-    const blogsDir = path.join(process.env.siteDir, 'blogs');
+    const blogsDir = path.join(process.env.sourceDir, 'blogs');
     let subDirs = await getSubDirs(blogsDir);
     let blogs = [];
     subDirs.sort().forEach(name => {
@@ -221,7 +221,7 @@ async function generateBlogIndex() {
         if (!isValidDate(groups[1])) {
             throw `ERROR: invalid blog folder name: ${name}`;
         }
-        blogs.push(blogInfo(process.env.siteDir, name));
+        blogs.push(blogInfo(process.env.sourceDir, name));
     });
     blogs.reverse();
     console.debug(`blogs index:
@@ -231,10 +231,10 @@ async function generateBlogIndex() {
 
 // generate book index tree as json:
 async function generateBookIndex(bookDirName) {
-    const siteDir = process.env.siteDir;
-    const booksDir = path.resolve(siteDir, 'books');
+    const sourceDir = process.env.sourceDir;
+    const booksDir = path.resolve(sourceDir, 'books');
     let bookUrlBase = `/books/${bookDirName}`;
-    let bookInfo = await loadYaml(siteDir, 'books', bookDirName, 'book.yml');
+    let bookInfo = await loadYaml(sourceDir, 'books', bookDirName, 'book.yml');
     let listDir = async (parent, dir, index) => {
         let fullDir = path.resolve(booksDir, dir);
         console.debug(`scan dir: ${dir}, full: ${fullDir}`);
@@ -301,18 +301,18 @@ function createTemplateEngine(dir) {
 async function generateSearchIndex() {
     console.log(`generate search index...`);
     const docs = [];
-    const siteDir = process.env.siteDir;
-    const books = await getSubDirs(path.join(siteDir, 'books'));
+    const sourceDir = process.env.sourceDir;
+    const books = await getSubDirs(path.join(sourceDir, 'books'));
     for (let book of books) {
         console.log(`generate search index for book: ${book}`);
         const root = await generateBookIndex(book);
         if (root.children.length === 0) {
             throw `Empty book ${book}`;
         }
-        const [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+        const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, book);
         const chapterList = flattenChapters(root);
         for (let node of chapterList) {
-            const mdFile = path.join(siteDir, 'books', node.dir, 'README.md');
+            const mdFile = path.join(sourceDir, 'books', node.dir, 'README.md');
             const [title, summary, mdContent] = markdownTitleSummaryContent(mdFile);
             const uri = path.join('/books', node.uri, 'index.html');
             const content = markdownToTxt(mdContent);
@@ -390,14 +390,14 @@ async function generateSearchIndex() {
 }
 
 async function generateHtmlForChapterContent(node, beforeMD, afterMD) {
-    const siteDir = process.env.siteDir;
-    const mdFileContent = await loadTextFile(siteDir, 'books', node.dir, node.file);
+    const sourceDir = process.env.sourceDir;
+    const mdFileContent = await loadTextFile(sourceDir, 'books', node.dir, node.file);
     const markdown = await createMarkdown();
     return markdown.render(beforeMD + mdFileContent + afterMD);
 }
 
 async function generateHtmlForPage(templateEngine, mdFile) {
-    const mdFilePath = path.join(process.env.siteDir, mdFile);
+    const mdFilePath = path.join(process.env.sourceDir, mdFile);
     const templateContext = await initTemplateContext();
     templateContext.title = markdownTitleSummaryContent(mdFilePath)[0];
     templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
@@ -405,7 +405,7 @@ async function generateHtmlForPage(templateEngine, mdFile) {
 }
 
 async function generateHtmlForIndexPage(templateEngine, mdFile) {
-    const mdFilePath = path.join(process.env.siteDir, mdFile);
+    const mdFilePath = path.join(process.env.sourceDir, mdFile);
     const templateContext = await initTemplateContext();
     templateContext.title = markdownTitleSummaryContent(mdFilePath)[0];
     templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
@@ -431,10 +431,10 @@ async function generateHtmlForBlogIndex(templateEngine) {
 }
 
 async function generateHtmlForBlog(name, templateEngine) {
-    const siteDir = process.env.siteDir;
+    const sourceDir = process.env.sourceDir;
     const [blogInfo, prev, next] = await loadBlogInfo(name);
     const markdown = await createMarkdown();
-    const mdFileContent = await loadTextFile(siteDir, 'blogs', name, 'README.md');
+    const mdFileContent = await loadTextFile(sourceDir, 'blogs', name, 'README.md');
     const templateContext = await initTemplateContext();
     templateContext.blog = blogInfo;
     templateContext.blog.content = markdown.render(mdFileContent);
@@ -444,10 +444,10 @@ async function generateHtmlForBlog(name, templateEngine) {
 }
 
 async function buildGitSite() {
-    const siteDir = process.env.siteDir;
+    const sourceDir = process.env.sourceDir;
     const layoutDir = process.env.layoutDir;
     const outputDir = process.env.outputDir;
-    console.log(`build git site: ${siteDir} to: ${outputDir}`);
+    console.log(`build git site: ${sourceDir} to: ${outputDir}`);
     if (fsSync.existsSync(outputDir)) {
         console.warn(`clean exist output dir: ${outputDir}`);
         fsSync.rmSync(outputDir, { recursive: true });
@@ -456,21 +456,21 @@ async function buildGitSite() {
     // create template engine:
     const config = await loadConfig();
     const theme = config.site.theme;
-    const templateEngine = createTemplateEngine(path.join(layoutDir, theme));
     // theme dir:
     const themeDir = path.join(layoutDir, theme);
+    const templateEngine = createTemplateEngine(themeDir);
     // run pre-build.js:
     await runBuildScript(themeDir, 'pre-build.mjs', config, outputDir);
     // generate books:
     {
-        const books = await getSubDirs(path.join(siteDir, 'books'));
+        const books = await getSubDirs(path.join(sourceDir, 'books'));
         for (let book of books) {
             console.log(`generate book: ${book}`);
             const root = await generateBookIndex(book);
             if (root.children.length === 0) {
                 throw `Empty book ${book}`;
             }
-            const [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+            const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, book);
             const first = root.children[0];
             const redirect = `/books/${first.uri}/index.html`;
             await writeTextFile(
@@ -481,7 +481,7 @@ async function buildGitSite() {
             console.debug(`${book} flattern chapters:
 ` + JSON.stringify(chapterList, null, '  '));
             for (let node of chapterList) {
-                const nodeDir = path.join(siteDir, 'books', `${node.dir}`);
+                const nodeDir = path.join(sourceDir, 'books', `${node.dir}`);
                 const htmlFile = path.join(outputDir, 'books', `${node.uri}`, 'index.html');
                 const contentHtmlFile = path.join(outputDir, 'books', `${node.uri}`, 'content.html');
                 console.debug(`generate file from chapter '${node.dir}': ${htmlFile}, ${contentHtmlFile}`);
@@ -501,13 +501,13 @@ async function buildGitSite() {
     }
     // generate pages:
     {
-        const pages = await getSubDirs(path.join(siteDir, 'pages'));
+        const pages = await getSubDirs(path.join(sourceDir, 'pages'));
         for (let page of pages) {
             console.log(`generate page: ${page}`);
             const htmlFile = path.join(outputDir, 'pages', page, 'index.html');
             await writeTextFile(htmlFile,
                 await generateHtmlForPage(templateEngine, path.join('pages', page, 'README.md')));
-            await copyStaticFiles(path.join(siteDir, 'pages', page), path.join(outputDir, 'pages', page));
+            await copyStaticFiles(path.join(sourceDir, 'pages', page), path.join(outputDir, 'pages', page));
         }
     }
     // generate blog index:
@@ -526,7 +526,7 @@ async function buildGitSite() {
             console.log(`generate blog: ${blog.dir}`);
             const htmlFile = path.join(outputDir, 'blogs', blog.dir, 'index.html');
             await writeTextFile(htmlFile, await generateHtmlForBlog(blog.dir, templateEngine));
-            await copyStaticFiles(path.join(siteDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
+            await copyStaticFiles(path.join(sourceDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
         }
     }
     // generate search index:
@@ -553,7 +553,7 @@ async function buildGitSite() {
     }
     // copy static resources:
     {
-        const srcStatic = path.join(siteDir, 'static');
+        const srcStatic = path.join(sourceDir, 'static');
         if (isExists(srcStatic)) {
             const destStatic = path.join(outputDir, 'static');
             console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
@@ -567,7 +567,7 @@ async function buildGitSite() {
     {
         const specialFiles = config.build.copy;
         for (let specialFile of specialFiles) {
-            const srcFile = path.join(siteDir, specialFile);
+            const srcFile = path.join(sourceDir, specialFile);
             if (isExists(srcFile)) {
                 const destFile = path.join(outputDir, specialFile);
                 console.log(`copy: ${srcFile} to: ${destFile}`);
@@ -585,7 +585,7 @@ async function buildGitSite() {
 }
 
 async function serveGitSite(port) {
-    const siteDir = process.env.siteDir;
+    const sourceDir = process.env.sourceDir;
     const layoutDir = process.env.layoutDir;
     // check port:
     if (port < 1 || port > 65535) {
@@ -696,7 +696,7 @@ async function serveGitSite(port) {
             }
             templateContext.book_index = root;
             let [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
-            let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+            let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, book);
             node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
@@ -733,7 +733,7 @@ async function serveGitSite(port) {
                 nextChapter = chapterList[nodeIndex + 1];
             }
             const templateContext = await initTemplateContext();
-            let [beforeMD, afterMD] = await loadBeforeAndAfter(siteDir, book);
+            let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, book);
             node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
             templateContext.chapter = node;
             templateContext.prevChapter = prevChapter;
@@ -758,7 +758,7 @@ async function serveGitSite(port) {
             if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
-            let file = path.join(siteDir, 'books', node.dir, ctx.params.file);
+            let file = path.join(sourceDir, 'books', node.dir, ctx.params.file);
             console.debug(`try file: ${file}`);
             if (isExists(file)) {
                 ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
@@ -776,13 +776,13 @@ async function serveGitSite(port) {
             let file, p = ctx.request.path.substring(1);
             if (p.startsWith('blogs/')
                 || p.startsWith('pages/')) {
-                file = path.join(siteDir, p);
+                file = path.join(sourceDir, p);
                 console.debug(`try file: ${file}`);
                 if (!isExists(file)) {
                     return sendError(404, ctx, `File not found: ${file}`);
                 }
             } else if (p.startsWith('static/')) {
-                file = path.join(siteDir, p);
+                file = path.join(sourceDir, p);
                 console.debug(`try file: ${file}`);
                 if (!isExists(file)) {
                     file = path.join(layoutDir, theme, p);
@@ -792,7 +792,7 @@ async function serveGitSite(port) {
                     return sendError(404, ctx, `File not found: ${file}`);
                 }
             } else if (p === 'favicon.ico') {
-                file = path.join(siteDir, p);
+                file = path.join(sourceDir, p);
                 console.debug(`try file: ${file}`);
                 if (!isExists(file)) {
                     return sendError(404, ctx, `File not found: ${file}`);
@@ -813,7 +813,7 @@ async function serveGitSite(port) {
     });
 
     app.listen(port);
-    console.log(`set gitsite directory: ${siteDir}`);
+    console.log(`set gitsite directory: ${sourceDir}`);
     console.log(`server is running at port ${port}...`);
 }
 
@@ -857,7 +857,7 @@ function main() {
 
     program.command('serve')
         .description('Run a web server to preview the site in local environment.')
-        .option('-s, --source <directory>', 'source directory.', 'site')
+        .option('-s, --source <directory>', 'source directory.', 'source')
         .option('-l, --layout <directory>', 'layout directory.', 'layout')
         .option('-p, --port <port>', 'local server port.', '3000')
         .option('-v, --verbose', 'make more logs for debugging.')
@@ -865,11 +865,11 @@ function main() {
             setVerbose(options.verbose);
             process.env.timestamp = Date.now();
             process.env.mode = 'serve';
-            process.env.siteDir = normalizeAndCheckDir(options.source);
+            process.env.sourceDir = normalizeAndCheckDir(options.source);
             process.env.layoutDir = normalizeAndCheckDir(options.layout);
             process.env.cacheDir = normalizeAndMkDir('.cache');
-            process.chdir(process.env.siteDir);
-            console.log(`site dir: ${process.env.siteDir}`);
+            process.chdir(process.env.sourceDir);
+            console.log(`site dir: ${process.env.sourceDir}`);
             console.log(`layout dir: ${process.env.layoutDir}`);
             console.log(`cache dir: ${process.env.cacheDir}`);
             await serveGitSite(parseInt(options.port));
@@ -877,7 +877,7 @@ function main() {
 
     program.command('build')
         .description('Build static web site.')
-        .option('-s, --source <directory>', 'source directory.', 'site')
+        .option('-s, --source <directory>', 'source directory.', 'source')
         .option('-l, --layout <directory>', 'layout directory.', 'layout')
         .option('-o, --output <directory>', 'output directory.', 'dist')
         .option('-v, --verbose', 'make more logs for debugging.')
@@ -885,12 +885,12 @@ function main() {
             setVerbose(options.verbose);
             process.env.timestamp = Date.now();
             process.env.mode = 'build';
-            process.env.siteDir = normalizeAndCheckDir(options.source);
+            process.env.sourceDir = normalizeAndCheckDir(options.source);
             process.env.layoutDir = normalizeAndCheckDir(options.layout);
             process.env.cacheDir = normalizeAndMkDir('.cache');
             process.env.outputDir = path.resolve(options.output);
-            process.chdir(process.env.siteDir);
-            console.log(`site dir: ${process.env.siteDir}`);
+            process.chdir(process.env.sourceDir);
+            console.log(`site dir: ${process.env.sourceDir}`);
             console.log(`layout dir: ${process.env.layoutDir}`);
             console.log(`cache dir: ${process.env.cacheDir}`);
             console.log(`output dir: ${process.env.outputDir}`);
