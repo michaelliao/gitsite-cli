@@ -149,7 +149,7 @@ export function isValidDate(ds) {
 
 // load yaml file as object:
 export async function loadYaml(...paths) {
-    let str = await loadTextFile(process.env.siteDir, ...paths);
+    let str = await loadTextFile(...paths);
     let obj = YAML.parse(str);
     // copy key 'abc-xyz' to 'abcXyz' recursively:
     let dupKey = (obj) => {

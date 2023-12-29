@@ -44,7 +44,8 @@ const DEFAULT_CONFIG = {
 };
 
 async function loadConfig() {
-    let config = await loadYaml('site.yml');
+    const siteDir = process.env.siteDir;
+    let config = await loadYaml(siteDir, 'site.yml');
     _.defaultsDeep(config, DEFAULT_CONFIG);
     return config;
 }
@@ -233,7 +234,7 @@ async function generateBookIndex(bookDirName) {
     const siteDir = process.env.siteDir;
     const booksDir = path.resolve(siteDir, 'books');
     let bookUrlBase = `/books/${bookDirName}`;
-    let bookInfo = await loadYaml('books', bookDirName, 'book.yml');
+    let bookInfo = await loadYaml(siteDir, 'books', bookDirName, 'book.yml');
     let listDir = async (parent, dir, index) => {
         let fullDir = path.resolve(booksDir, dir);
         console.debug(`scan dir: ${dir}, full: ${fullDir}`);
@@ -444,6 +445,7 @@ async function generateHtmlForBlog(name, templateEngine) {
 
 async function buildGitSite() {
     const siteDir = process.env.siteDir;
+    const layoutDir = process.env.layoutDir;
     const outputDir = process.env.outputDir;
     console.log(`build git site: ${siteDir} to: ${outputDir}`);
     if (fsSync.existsSync(outputDir)) {
@@ -454,9 +456,9 @@ async function buildGitSite() {
     // create template engine:
     const config = await loadConfig();
     const theme = config.site.theme;
-    const templateEngine = createTemplateEngine(path.join(siteDir, 'layout', theme));
+    const templateEngine = createTemplateEngine(path.join(layoutDir, theme));
     // theme dir:
-    const themeDir = path.join(siteDir, 'layout', theme);
+    const themeDir = path.join(layoutDir, theme);
     // run pre-build.js:
     await runBuildScript(themeDir, 'pre-build.mjs', config, outputDir);
     // generate books:
@@ -584,6 +586,7 @@ async function buildGitSite() {
 
 async function serveGitSite(port) {
     const siteDir = process.env.siteDir;
+    const layoutDir = process.env.layoutDir;
     // check port:
     if (port < 1 || port > 65535) {
         console.error(`port is invalid: ${port}`);
@@ -592,7 +595,7 @@ async function serveGitSite(port) {
     // create template engine:
     const config = await loadConfig();
     const theme = config.site.theme;
-    const templateEngine = createTemplateEngine(path.join(siteDir, 'layout', theme));
+    const templateEngine = createTemplateEngine(path.join(layoutDir, theme));
 
     const searchIndex = await generateSearchIndex();
 
@@ -782,7 +785,7 @@ async function serveGitSite(port) {
                 file = path.join(siteDir, p);
                 console.debug(`try file: ${file}`);
                 if (!isExists(file)) {
-                    file = path.join(siteDir, 'layout', theme, p);
+                    file = path.join(layoutDir, theme, p);
                     console.debug(`try file: ${file}`);
                 }
                 if (!isExists(file)) {
@@ -854,35 +857,41 @@ function main() {
 
     program.command('serve')
         .description('Run a web server to preview the site in local environment.')
-        .option('-d, --dir <directory>', 'source directory.', '.')
+        .option('-s, --source <directory>', 'source directory.', 'site')
+        .option('-l, --layout <directory>', 'layout directory.', 'layout')
         .option('-p, --port <port>', 'local server port.', '3000')
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
             process.env.timestamp = Date.now();
             process.env.mode = 'serve';
-            process.env.siteDir = normalizeAndCheckDir(options.dir);
+            process.env.siteDir = normalizeAndCheckDir(options.source);
+            process.env.layoutDir = normalizeAndCheckDir(options.layout);
             process.env.cacheDir = normalizeAndMkDir('.cache');
             process.chdir(process.env.siteDir);
             console.log(`site dir: ${process.env.siteDir}`);
+            console.log(`layout dir: ${process.env.layoutDir}`);
             console.log(`cache dir: ${process.env.cacheDir}`);
             await serveGitSite(parseInt(options.port));
         });
 
     program.command('build')
         .description('Build static web site.')
-        .option('-d, --dir <directory>', 'source directory.', '.')
+        .option('-s, --source <directory>', 'source directory.', 'site')
+        .option('-l, --layout <directory>', 'layout directory.', 'layout')
         .option('-o, --output <directory>', 'output directory.', 'dist')
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
             setVerbose(options.verbose);
             process.env.timestamp = Date.now();
             process.env.mode = 'build';
-            process.env.siteDir = normalizeAndCheckDir(options.dir);
+            process.env.siteDir = normalizeAndCheckDir(options.source);
+            process.env.layoutDir = normalizeAndCheckDir(options.layout);
             process.env.cacheDir = normalizeAndMkDir('.cache');
             process.env.outputDir = path.resolve(options.output);
             process.chdir(process.env.siteDir);
             console.log(`site dir: ${process.env.siteDir}`);
+            console.log(`layout dir: ${process.env.layoutDir}`);
             console.log(`cache dir: ${process.env.cacheDir}`);
             console.log(`output dir: ${process.env.outputDir}`);
             await buildGitSite();
