@@ -39,40 +39,6 @@ export function markdownTitleContent(mdFilePath) {
     return [title, content.join('\n')];
 }
 
-// return ['title', 'summary', 'md-content']
-export function markdownTitleSummaryContent(mdFilePath) {
-    const liner = new LineByLine(mdFilePath);
-    let line, title = '', summary = '';
-    while (line = liner.next()) {
-        let s = line.toString('utf8').trim();
-        if (s) {
-            if (s.startsWith('# ')) {
-                if (title === '') {
-                    title = s.substring(2).trim();
-                } else {
-                    break;
-                }
-            } else if (s.startsWith('> ')) {
-                if (title !== '') { // title must be read first
-                    summary = summary + ' ' + s.substring(2);
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-    }
-    if (!title) {
-        throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# title".`);
-    }
-    let content = [];
-    while (line = liner.next()) {
-        content.push(line.toString('utf8'));
-    }
-    return [title, summary.trim(), content.join('\n')];
-}
-
 export function markdownTitleAndSummary(mdFilePath) {
     const liner = new LineByLine(mdFilePath);
     let line, title = '', summary = '';
