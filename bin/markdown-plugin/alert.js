@@ -3,7 +3,7 @@ Render a code block as alert.
 
 Source:
 
-``` alert info
+```alert info
 NOTE: this is an **info** message.
 ```
 
