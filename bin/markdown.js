@@ -52,6 +52,17 @@ async function createMarkdown(opt) {
             codeBlockPlugins.push(mod.default);
         }
     }
+    let user_plugin_dir = path.join(process.env.sourceDir, '..', 'plugin');
+    console.log(`user plugin dir: ${user_plugin_dir}`);
+    let user_plugin_names = await readdir(user_plugin_dir);
+    user_plugin_names.sort();
+    for (let name of user_plugin_names) {
+        if (name.endsWith('.js')) {
+            console.debug(`auto import markdown plugin: ${name}`);
+            let mod = await import(`${user_plugin_dir}/${name}`);
+            codeBlockPlugins.push(mod.default);
+        }
+    }
     let md = new MarkdownIt({
         html: opt.html,
         linkify: opt.linkify,
