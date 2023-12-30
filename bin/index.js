@@ -389,17 +389,19 @@ async function generateHtmlForBlogContent(blog, beforeMD, afterMD) {
 
 async function generateHtmlForPage(templateEngine, mdFile) {
     const mdFilePath = path.join(process.env.sourceDir, mdFile);
+    const markdown = await createMarkdown();
     const templateContext = await initTemplateContext();
     templateContext.title = markdownTitleContent(mdFilePath)[0];
-    templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
+    templateContext.htmlContent = markdown.render(await loadTextFile(mdFilePath));
     return templateEngine.render('page.html', templateContext);
 }
 
 async function generateHtmlForIndexPage(templateEngine, mdFile) {
     const mdFilePath = path.join(process.env.sourceDir, mdFile);
+    const markdown = await createMarkdown();
     const templateContext = await initTemplateContext();
     templateContext.title = markdownTitleContent(mdFilePath)[0];
-    templateContext.htmlContent = (await createMarkdown()).render(await loadTextFile(mdFilePath));
+    templateContext.htmlContent = markdown.render(await loadTextFile(mdFilePath));
     return templateEngine.render('index.html', templateContext);
 }
 
