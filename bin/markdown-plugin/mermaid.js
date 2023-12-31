@@ -78,20 +78,27 @@ export default function (md, args, str) {
     // because it is very slow to generate diagrams to svg,
     // we cache the generated svg by hash:
     const hash = sha1(str);
-    const output = path.join(process.env.cacheDir, `${hash}.svg`);
-    if (!process.env.disableCache && existsSync(output)) {
-        console.log(`load svg from cache: ${output}`);
-        return readFileSync(output, { encoding: 'utf8' });
+    const outputFile = path.join(process.env.cacheDir, `${hash}.svg`);
+    if (!process.env.disableCache && existsSync(outputFile)) {
+        console.log(`load svg from cache: ${outputFile}`);
+        return readFileSync(outputFile, { encoding: 'utf8' });
     }
-    const input = path.join(process.env.cacheDir, `${hash}.mmd`);
-    const outputOrigin = path.join(process.env.cacheDir, `${hash}-ori.svg`);
-    const puppeteerConfig = path.join(process.env.cacheDir, 'puppeteer-config.json');
-    writeFileSync(puppeteerConfig, '{"args": ["--no-sandbox"]}', { encoding: 'utf8' });
-    writeFileSync(input, str, { encoding: 'utf8' });
-    const cmd = `npx -p @mermaid-js/mermaid-cli mmdc -b transparent -p "${puppeteerConfig}" -i "${input}" -o "${outputOrigin}"`;
+    const inputFile = path.join(process.env.cacheDir, `${hash}.mmd`);
+    const outputOriginFile = path.join(process.env.cacheDir, `${hash}-ori.svg`);
+    const puppeteerCfgFile = path.join(process.env.cacheDir, 'puppeteer-config.json');
+    const isRoot = process.getuid && process.getuid() === 0;
+    const puppeteerCfgJson = {
+        args: []
+    };
+    if (process.getuid && process.getuid() === 0) {
+        puppeteerCfgJson.args.push('--no-sandbox');
+    }
+    writeFileSync(puppeteerCfgFile, JSON.stringify(puppeteerCfgJson), { encoding: 'utf8' });
+    writeFileSync(inputFile, str, { encoding: 'utf8' });
+    const cmd = `npx -p @mermaid-js/mermaid-cli mmdc -b transparent -p "${puppeteerCfgFile}" -i "${inputFile}" -o "${outputOriginFile}"`;
     console.log(`exec: ${cmd}`);
     execSync(cmd);
-    let svg = readFileSync(outputOrigin, { encoding: 'utf8' });
+    let svg = readFileSync(outputOriginFile, { encoding: 'utf8' });
     // get diagram type:
     const type = getDiagramType(svg);
 
@@ -109,6 +116,6 @@ export default function (md, args, str) {
     svg = deleteRange(svg, 'fill: rgb(', ');');
     svg = deleteRange(svg, 'stroke: rgb(', ');');
     // update output file:
-    writeFileSync(output, svg, { encoding: 'utf8' });
+    writeFileSync(outputFile, svg, { encoding: 'utf8' });
     return svg + '\n';
 };

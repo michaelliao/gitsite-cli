@@ -371,7 +371,7 @@ async function generateSearchIndex() {
     });
     const kb = dump.length >> 10;
     console.log(`search index (${kb} kb):
-` + dump);
+` + dump.substring(0, 128) + '...');
     return 'window.__search__=' + dump;
 }
 
