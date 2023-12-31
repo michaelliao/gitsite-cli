@@ -160,6 +160,7 @@ async function initTemplateContext() {
     return templateContext;
 }
 
+// load 'BEFORE.md' and 'AFTER.md' in specified dir, return markdown contents as array[2]:
 async function loadBeforeAndAfter(sourceDir, ...dirs) {
     let beforeMD = '', afterMD = '';
     const
@@ -192,7 +193,7 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
     }
 }
 
-// generate blog index as json, newest first:
+// generate blog index as array, newest first:
 async function generateBlogIndex(locale) {
     const sourceDir = process.env.sourceDir;
     const blogsDir = path.join(sourceDir, 'blogs');
@@ -220,7 +221,7 @@ async function generateBlogIndex(locale) {
     return blogs;
 }
 
-// generate book index tree as json:
+// generate book index as tree:
 async function generateBookIndex(bookDirName) {
     const sourceDir = process.env.sourceDir;
     const booksDir = path.resolve(sourceDir, 'books');
@@ -388,6 +389,7 @@ async function generateHtmlForPage(templateEngine, viewName, mdFile) {
     return templateEngine.render(viewName, templateContext);
 }
 
+// generate html for blog full page or content only:
 async function generateHtmlForBlog(templateEngine, name, isFullPage) {
     const sourceDir = process.env.sourceDir;
     const templateContext = await initTemplateContext();
