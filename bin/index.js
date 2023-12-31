@@ -17,6 +17,7 @@ import createMarkdown from './markdown.js';
 import { markdownToTxt } from 'markdown-to-txt';
 import { copyStaticFiles, isExists, loadBinaryFile, loadYaml, loadTextFile, flattenChapters, getSubDirs, markdownFileInfo, markdownTitleContent, writeTextFile, isValidDate } from './helper.js';
 
+// default config:
 const DEFAULT_CONFIG = {
     site: {
         title: 'GitSite',
@@ -25,11 +26,11 @@ const DEFAULT_CONFIG = {
         theme: 'default',
         navigation: [],
         contact: {
-            name: 'Git Site',
+            name: 'GitSite',
             github: 'https://github.com/michaelliao/gitsite'
         },
         blogs: {
-            title: 'Latest Updates'
+            title: 'Blogs'
         },
         books: {
             indexMarker: true
@@ -43,6 +44,24 @@ const DEFAULT_CONFIG = {
     }
 };
 
+// use JSON.stringify but avoid recursive reference:
+function jsonify(obj) {
+    return JSON.stringify(obj, (k, v) => {
+        if (k === 'prev' || k === 'next') {
+            return v === null ? null : '<object>';
+        }
+        if (typeof (v) === 'string') {
+            const n = v.length;
+            if (n > 128) {
+                const dec = n > 1024000 ? 0 : (n > 1024 ? 1 : 2);
+                return v.substring(0, 128) + '...(' + (n / 1024).toFixed(dec) + ' kB)';
+            }
+        }
+        return v;
+    }, '  ');
+}
+
+// load config and merge with defaults:
 async function loadConfig() {
     const sourceDir = process.env.sourceDir;
     let config = await loadYaml(sourceDir, 'site.yml');
@@ -50,6 +69,7 @@ async function loadConfig() {
     return config;
 }
 
+// convert '20-hello-world' to [20, 'hello-world'] by trim the leading number:
 function chapterURI(dir) {
     let base = path.basename(dir);
     let groups = /^(\d{1,8})[\-\.\_](.+)$/.exec(base);
@@ -127,7 +147,10 @@ ${err.toString()}</code></pre>
 }
 
 function redirectHtml(redirect) {
-    return `<html><head><meta http-equiv="refresh" content="0;URL='${redirect}'" /></head><body></body></html>`
+    return `<html>
+<head><meta http-equiv="refresh" content="0;URL='${redirect}'" /></head>
+<body></body>
+</html>`
 }
 
 async function initTemplateContext() {
@@ -135,18 +158,6 @@ async function initTemplateContext() {
     templateContext.__mode__ = process.env.mode;
     templateContext.__timestamp__ = process.env.timestamp;
     return templateContext;
-}
-
-function findPrevNextChapter(chapterList, node) {
-    let prevChapter = null, nextChapter = null;
-    const nodeIndex = chapterList.findIndex(c => c === node);
-    if (nodeIndex > 0) {
-        prevChapter = chapterList[nodeIndex - 1];
-    }
-    if (nodeIndex < chapterList.length - 1) {
-        nextChapter = chapterList[nodeIndex + 1];
-    }
-    return [prevChapter, nextChapter];
 }
 
 async function loadBeforeAndAfter(sourceDir, ...dirs) {
@@ -205,15 +216,7 @@ async function generateBlogIndex(locale) {
         blog.next = i < blogs.length - 1 ? blogs[i + 1] : null;
     }
     console.debug(`blogs index:
-`+ JSON.stringify(blogs, (k, v) => {
-        if (k === 'prev' || k === 'next') {
-            return v === null ? null : '<blog object>';
-        }
-        if (k === 'content' && v.length > 128) {
-            return v.substring(0, 128) + '...';
-        }
-        return v;
-    }, '  '));
+`+ jsonify(blogs));
     return blogs;
 }
 
@@ -228,14 +231,14 @@ async function generateBookIndex(bookDirName) {
         console.debug(`scan dir: ${dir}, full: ${fullDir}`);
         let [order, uri] = parent === null ? [0, dir] : chapterURI(dir);
         console.debug(`set order: ${order}, uri: ${uri}`);
-        let [file, title] = parent === null ? ['', bookInfo.book.title] : await markdownFileInfo(fullDir);
+        let [title, content] = parent === null ? ['', ''] : await markdownTitleContent(path.join(fullDir, 'README.md'));
         let item = {
             level: parent === null ? 0 : parent.level + 1,
             marker: parent === null ? '' : parent.marker ? parent.marker + '.' + (index + 1) : (index + 1).toString(),
             dir: dir,
-            file: parent === null ? null : file,
             order: order,
             title: title,
+            content: content,
             uri: parent === null ? uri : parent.uri + '/' + uri,
             children: []
         };
@@ -269,7 +272,7 @@ async function generateBookIndex(bookDirName) {
     }
     let root = await listDir(null, bookDirName, 0);
     console.debug(`${bookDirName} book index:
-` + JSON.stringify(root, null, ' '));
+` + jsonify(root));
     return root;
 }
 
@@ -375,37 +378,17 @@ async function generateSearchIndex() {
     return 'window.__search__=' + dump;
 }
 
-async function generateHtmlForChapterContent(node, beforeMD, afterMD) {
-    const sourceDir = process.env.sourceDir;
-    const [_, mdContent] = markdownTitleContent(path.join(sourceDir, 'books', node.dir, node.file));
-    const markdown = await createMarkdown();
-    return markdown.render(beforeMD + mdContent + afterMD);
-}
-
-async function generateHtmlForBlogContent(blog, beforeMD, afterMD) {
-    const markdown = await createMarkdown();
-    return markdown.render(beforeMD + blog.content + afterMD);
-}
-
-async function generateHtmlForPage(templateEngine, mdFile) {
+async function generateHtmlForPage(templateEngine, viewName, mdFile) {
     const mdFilePath = path.join(process.env.sourceDir, mdFile);
     const markdown = await createMarkdown();
     const templateContext = await initTemplateContext();
-    templateContext.title = markdownTitleContent(mdFilePath)[0];
-    templateContext.htmlContent = markdown.render(await loadTextFile(mdFilePath));
-    return templateEngine.render('page.html', templateContext);
+    [templateContext.title, templateContext.content] = markdownTitleContent(mdFilePath);
+    templateContext.htmlContent = markdown.render(templateContext.content);
+    console.debug(templateContext.content);
+    return templateEngine.render(viewName, templateContext);
 }
 
-async function generateHtmlForIndexPage(templateEngine, mdFile) {
-    const mdFilePath = path.join(process.env.sourceDir, mdFile);
-    const markdown = await createMarkdown();
-    const templateContext = await initTemplateContext();
-    templateContext.title = markdownTitleContent(mdFilePath)[0];
-    templateContext.htmlContent = markdown.render(await loadTextFile(mdFilePath));
-    return templateEngine.render('index.html', templateContext);
-}
-
-async function generateHtmlForBlog(templateEngine, name) {
+async function generateHtmlForBlog(templateEngine, name, isFullPage) {
     const sourceDir = process.env.sourceDir;
     const templateContext = await initTemplateContext();
     const blogs = await generateBlogIndex(templateContext.site.locale);
@@ -416,13 +399,14 @@ async function generateHtmlForBlog(templateEngine, name) {
     if (!blog) {
         throw 'Blog not found.';
     }
+    let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs');
+    const markdown = await createMarkdown();
+    blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
+
     templateContext.sidebar = true;
     templateContext.blogs = blogs;
-
-    const markdown = await createMarkdown();
     templateContext.blog = blog;
-    templateContext.blog.content = markdown.render(blog.content);
-    return templateEngine.render('blog.html', templateContext);
+    return templateEngine.render(isFullPage ? 'blog.html' : 'blog_content.html', templateContext);
 }
 
 async function buildGitSite() {
@@ -441,6 +425,7 @@ async function buildGitSite() {
     // theme dir:
     const themeDir = path.join(layoutDir, theme);
     const templateEngine = createTemplateEngine(themeDir);
+    const markdown = await createMarkdown();
     // run pre-build.js:
     await runBuildScript(themeDir, 'pre-build.mjs', config, outputDir);
     // generate books:
@@ -460,22 +445,17 @@ async function buildGitSite() {
                 redirectHtml(redirect)
             );
             const chapterList = flattenChapters(root);
-            console.debug(`${book} flattern chapters:
-` + JSON.stringify(chapterList, null, '  '));
             for (let node of chapterList) {
                 const nodeDir = path.join(sourceDir, 'books', `${node.dir}`);
                 const htmlFile = path.join(outputDir, 'books', `${node.uri}`, 'index.html');
                 const contentHtmlFile = path.join(outputDir, 'books', `${node.uri}`, 'content.html');
                 console.debug(`generate file from chapter '${node.dir}': ${htmlFile}, ${contentHtmlFile}`);
+                node.htmlContent = markdown.render(beforeMD + node.content + afterMD);
 
-                const [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
                 const templateContext = await initTemplateContext();
                 templateContext.sidebar = true;
-                templateContext.book_index = root;
-                node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
+                templateContext.book = root;
                 templateContext.chapter = node;
-                templateContext.prevChapter = prevChapter;
-                templateContext.nextChapter = nextChapter;
                 await writeTextFile(htmlFile, templateEngine.render('book.html', templateContext));
                 await writeTextFile(contentHtmlFile, templateEngine.render('book_content.html', templateContext));
                 await copyStaticFiles(nodeDir, path.join(outputDir, 'books', `${node.uri}`));
@@ -489,7 +469,7 @@ async function buildGitSite() {
             console.log(`generate page: ${page}`);
             const htmlFile = path.join(outputDir, 'pages', page, 'index.html');
             await writeTextFile(htmlFile,
-                await generateHtmlForPage(templateEngine, path.join('pages', page, 'README.md')));
+                await generateHtmlForPage(templateEngine, 'page.html', path.join('pages', page, 'README.md')));
             await copyStaticFiles(path.join(sourceDir, 'pages', page), path.join(outputDir, 'pages', page));
         }
     }
@@ -498,17 +478,17 @@ async function buildGitSite() {
         const blogs = await generateBlogIndex();
         if (blogs.length > 0) {
             const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs');
+            const templateContext = await initTemplateContext();
+            templateContext.sidebar = true;
+            templateContext.blogs = blogs;
             for (let blog of blogs) {
                 console.log(`generate blog: ${blog.dir}`);
-                const htmlFile = path.join(outputDir, 'blogs', blog.dir, 'index.html');
-                const contentFile = path.join(outputDir, 'blogs', blog.dir, 'content.html');
-                blog.content = await generateHtmlForBlogContent(blog, beforeMD, afterMD);
-                const templateContext = await initTemplateContext();
-                templateContext.sidebar = true;
-                templateContext.blogs = blogs;
+                const blogIndexFile = path.join(outputDir, 'blogs', blog.dir, 'index.html');
+                const blogContentFile = path.join(outputDir, 'blogs', blog.dir, 'content.html');
+                blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
                 templateContext.blog = blog;
-                await writeTextFile(htmlFile, await generateHtmlForBlog(templateEngine, blog.dir));
-                await writeTextFile(contentFile, templateEngine.render('blog_content.html', templateContext));
+                await writeTextFile(blogIndexFile, templateEngine.render('blog.html', templateContext));
+                await writeTextFile(blogContentFile, templateEngine.render('blog_content.html', templateContext));
                 await copyStaticFiles(path.join(sourceDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
             }
             await writeTextFile(
@@ -534,9 +514,7 @@ async function buildGitSite() {
             console.log(`generate: ${md} => ${html}`);
             const htmlFile = path.join(outputDir, html);
             await writeTextFile(htmlFile,
-                md === 'README.md' ?
-                    await generateHtmlForIndexPage(templateEngine, md) :
-                    await generateHtmlForPage(templateEngine, md));
+                await generateHtmlForPage(templateEngine, 'index.html', md));
         }
     }
     // copy static resources:
@@ -602,12 +580,12 @@ async function serveGitSite(port) {
 
     router.get('/', async ctx => {
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = await generateHtmlForIndexPage(templateEngine, 'README.md');
+        ctx.body = await generateHtmlForPage(templateEngine, 'index.html', 'README.md');
     });
 
     router.get('/404', async ctx => {
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = await generateHtmlForPage(templateEngine, '404.md');
+        ctx.body = await generateHtmlForPage(templateEngine, 'index.html', '404.md');
     });
 
     router.get('/static/search-index.js', async ctx => {
@@ -618,11 +596,11 @@ async function serveGitSite(port) {
     router.get('/pages/:page/index.html', async ctx => {
         const mdFilePath = path.join('pages', `${ctx.params.page}`, 'README.md');
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = await generateHtmlForPage(templateEngine, mdFilePath);
+        ctx.body = await generateHtmlForPage(templateEngine, 'page.html', mdFilePath);
     });
 
     router.get('/blogs/index.html', async ctx => {
-        console.debug('process blog list');
+        console.debug('process blog index.');
         const blogs = await generateBlogIndex();
         if (blogs.length === 0) {
             throw 'Blogs is empty';
@@ -634,26 +612,13 @@ async function serveGitSite(port) {
     router.get('/blogs/:name/index.html', async ctx => {
         console.debug(`process blog: name = ${ctx.params.name}`);
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = await generateHtmlForBlog(templateEngine, ctx.params.name);
+        ctx.body = await generateHtmlForBlog(templateEngine, ctx.params.name, true);
     });
 
     router.get('/blogs/:name/content.html', async ctx => {
         console.debug(`process blog content: name = ${ctx.params.name}`);
-        const sourceDir = process.env.sourceDir;
-        const blogs = await generateBlogIndex();
-        if (blogs.length === 0) {
-            throw 'No blog posted.';
-        }
-        const blog = blogs.find(b => b.name === ctx.params.name);
-        if (!blog) {
-            throw 'Blog not found.';
-        }
-        let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs');
-        blog.content = await generateHtmlForBlogContent(blog, beforeMD, afterMD);
-        const templateContext = await initTemplateContext();
-        templateContext.blog = blog;
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = templateEngine.render('blog_content.html', templateContext);
+        ctx.body = await generateHtmlForBlog(templateEngine, ctx.params.name, false);
     });
 
     router.get('/books/:book/index.html', async ctx => {
@@ -676,7 +641,6 @@ async function serveGitSite(port) {
         try {
             let book = ctx.params.book,
                 chapters = ctx.params.chapters.split('/');
-            const templateContext = await initTemplateContext();
             let root = await generateBookIndex(book);
             // find chapter by uri:
             let uri = `${book}/` + chapters.join('/');
@@ -685,15 +649,13 @@ async function serveGitSite(port) {
             if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
-            templateContext.book_index = root;
-            templateContext.sidebar = true;
-            let [prevChapter, nextChapter] = findPrevNextChapter(chapterList, node);
             let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'books', book);
-            node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
+            const markdown = await createMarkdown();
+            node.htmlContent = markdown.render(beforeMD + node.content + afterMD);
+            const templateContext = await initTemplateContext();
+            templateContext.book = root;
+            templateContext.sidebar = true;
             templateContext.chapter = node;
-            templateContext.prevChapter = prevChapter;
-            templateContext.nextChapter = nextChapter;
-            console.debug(`template context production: ${templateContext.production}`);
             const html = templateEngine.render('book.html', templateContext);
             ctx.type = 'text/html; charset=utf-8';
             ctx.body = html;
@@ -716,21 +678,12 @@ async function serveGitSite(port) {
             if (node === undefined) {
                 throw `Chapter not found: ${ctx.params.chapters}`;
             }
-            let prevChapter = null, nextChapter = null;
-            let nodeIndex = chapterList.findIndex(c => c === node);
-            if (nodeIndex > 0) {
-                prevChapter = chapterList[nodeIndex - 1];
-            }
-            if (nodeIndex < chapterList.length - 1) {
-                nextChapter = chapterList[nodeIndex + 1];
-            }
-            const templateContext = await initTemplateContext();
-            templateContext.book_index = root;
             let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'books', book);
-            node.content = await generateHtmlForChapterContent(node, beforeMD, afterMD);
+            const markdown = await createMarkdown();
+            node.htmlContent = markdown.render(beforeMD + node.content + afterMD);
+            const templateContext = await initTemplateContext();
+            templateContext.book = root;
             templateContext.chapter = node;
-            templateContext.prevChapter = prevChapter;
-            templateContext.nextChapter = nextChapter;
             const html = templateEngine.render('book_content.html', templateContext);
             ctx.type = 'text/html; charset=utf-8';
             ctx.body = html;
