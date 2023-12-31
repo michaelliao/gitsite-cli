@@ -35,45 +35,6 @@ export function markdownTitleContent(mdFilePath) {
     return [title, content.join('\n')];
 }
 
-export function markdownTitleAndSummary(mdFilePath) {
-    const liner = new LineByLine(mdFilePath);
-    let line, title = '', summary = '';
-    while (line = liner.next()) {
-        let s = line.toString('utf8').trim();
-        if (s) {
-            if (s.startsWith('# ')) {
-                if (title === '') {
-                    title = s.substring(2).trim();
-                } else {
-                    break;
-                }
-            } else if (s.startsWith('> ')) {
-                if (title !== '') { // title must be read first
-                    summary = summary + ' ' + s.substring(2);
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-    }
-    if (!title) {
-        throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# title".`);
-    }
-    return [title, summary.trim()];
-}
-
-export async function markdownFileInfo(dir) {
-    console.debug(`markdown file dir: ${dir}`)
-    const mdFilePath = path.join(dir, 'README.md');
-    if (!existsSync(mdFilePath)) {
-        throw new Error(`Markdown file "README.md" not found in ${dir}.`);
-    }
-    let [title, summary] = markdownTitleAndSummary(mdFilePath);
-    return ['README.md', title, summary];
-}
-
 export async function getSubDirs(dir, filterFn) {
     let names = (await fs.readdir(dir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
     if (filterFn) {
