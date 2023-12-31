@@ -44,11 +44,8 @@ function deleteRange(str, start, end) {
 
 const ECL_SET = new Set(['l', 'm', 'h', 'q']);
 
-export default function (md, type, args, str) {
-    if (type !== 'qrcode') {
-        return null;
-    }
-    console.log(`generate qrcode: args = ${JSON.stringify(args)}`);
+export default function (md, args, str) {
+    console.debug(`generate qrcode: args = ${JSON.stringify(args)}`);
     // default args:
     let ecl = 'm';
     let width = 256;

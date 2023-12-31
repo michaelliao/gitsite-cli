@@ -42,25 +42,15 @@ async function createMarkdown(opt) {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const plugin_dir = path.join(__dirname, 'markdown-plugin');
-    let plugin_names = await readdir(plugin_dir);
+    const plugin_names = await readdir(plugin_dir);
     plugin_names.sort();
-    let codeBlockPlugins = [];
+    const codeBlockPlugins = new Map();
     for (let name of plugin_names) {
         if (name.endsWith('.js')) {
             console.debug(`auto import markdown plugin: ${name}`);
-            let mod = await import(`./markdown-plugin/${name}`);
-            codeBlockPlugins.push(mod.default);
-        }
-    }
-    let user_plugin_dir = path.join(process.env.sourceDir, '..', 'plugin');
-    console.log(`user plugin dir: ${user_plugin_dir}`);
-    let user_plugin_names = await readdir(user_plugin_dir);
-    user_plugin_names.sort();
-    for (let name of user_plugin_names) {
-        if (name.endsWith('.js')) {
-            console.debug(`auto import markdown plugin: ${name}`);
-            let mod = await import(`${user_plugin_dir}/${name}`);
-            codeBlockPlugins.push(mod.default);
+            const mod = await import(`./markdown-plugin/${name}`);
+            const pName = name.substring(0, name.length - 3);
+            codeBlockPlugins.set(pName, mod.default);
         }
     }
     let md = new MarkdownIt({
@@ -82,7 +72,7 @@ async function createMarkdown(opt) {
         }
     });
 
-    if (codeBlockPlugins) {
+    if (codeBlockPlugins.size > 0) {
         const defaultFence = md.renderer.rules.fence;
         md.renderer.rules.fence = function (tokens, idx, options, env, self) {
             let token = tokens[idx],
@@ -91,8 +81,10 @@ async function createMarkdown(opt) {
             if (info) {
                 let arr = info.toLowerCase().split(/\s+/g);
                 let type = arr.shift();
-                for (let codeBlockPlugin of codeBlockPlugins) {
-                    let result = codeBlockPlugin(md, type, arr, token.content);
+                if (codeBlockPlugins.has(type)) {
+                    console.log(`use markdown plugin ${type}.`);
+                    let plugin = codeBlockPlugins.get(type);
+                    let result = plugin(md, arr, token.content);
                     if (result) {
                         return result;
                     }

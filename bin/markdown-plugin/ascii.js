@@ -26,9 +26,6 @@ import MarkdownIt from "markdown-it";
 
 const escapeHtml = MarkdownIt().utils.escapeHtml;
 
-export default function (md, type, args, str) {
-    if (type !== 'ascii') {
-        return null;
-    }
+export default function (md, args, str) {
     return '<pre class="ascii"><code>' + escapeHtml(str) + '</code></pre>\n';
 };

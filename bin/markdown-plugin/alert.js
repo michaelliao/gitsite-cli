@@ -14,10 +14,8 @@ Rendered as:
 </div>
 */
 
-export default function (md, type, args, str) {
-  if (type !== 'alert') {
-    return null;
-  }
-  let arg = args[0] || 'info';
-  return `<div class="alert alert-${arg}"><p>` + md.renderInline(str) + '</p></div>\n';
+export default function (md, args, str) {
+    console.debug(`alert args=${JSON.stringify(args)}`);
+    let arg = args[0] || 'info';
+    return `<div class="alert alert-${arg}"><p>` + md.renderInline(str) + '</p></div>\n';
 };

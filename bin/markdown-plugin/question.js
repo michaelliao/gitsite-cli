@@ -73,11 +73,8 @@ const js_input_sum = "Array.from(this.getElementsByTagName('input')).filter(i=>i
 const js_input_value = "this.getElementsByTagName('input')[0].value.trim()";
 const js_show_ok = "this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null;";
 
-export default function (md, type, args, str) {
-    if (type !== 'question') {
-        return null;
-    }
-    console.debug(`type=${type}, args=${JSON.stringify(args)}`);
+export default function (md, args, str) {
+    console.debug(`args=${JSON.stringify(args)}`);
     let arg = args[0] || '';
     let arr = str.split(/\-{3,}/g);
     if (arr.length !== 2) {

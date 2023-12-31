@@ -3,7 +3,7 @@ Render a code block as mermaid diagram.
 
 Source:
 
-``` mermaid
+```mermaid
 flowchart LR
     mddocs(Markdown Docs)
     themes(HTML Templates)
@@ -59,12 +59,12 @@ function deleteRange(str, start, end) {
 }
 
 function getDiagramType(svg) {
-    let dtype = getRange(svg, 'aria-roledescription="', '"');
-    let n = dtype.indexOf('-');
+    let type = getRange(svg, 'aria-roledescription="', '"');
+    let n = type.indexOf('-');
     if (n >= 0) {
-        dtype = dtype.substring(0, n);
+        type = type.substring(0, n);
     }
-    return dtype.toLowerCase();
+    return type.toLowerCase();
 }
 
 function sha1(str) {
@@ -73,12 +73,8 @@ function sha1(str) {
     return hash.digest('hex');
 }
 
-export default function (md, type, args, str) {
-    if (type !== 'mermaid') {
-        return null;
-    }
-    console.log(`generate mermaid svg:
-${str}`);
+export default function (md, args, str) {
+    console.debug(`mermaid args=${JSON.stringify(args)}`);
     // because it is very slow to generate diagrams to svg,
     // we cache the generated svg by hash:
     const hash = sha1(str);
@@ -89,18 +85,20 @@ ${str}`);
     }
     const input = path.join(process.env.cacheDir, `${hash}.mmd`);
     const outputOrigin = path.join(process.env.cacheDir, `${hash}-ori.svg`);
+    const puppeteerConfig = path.join(process.env.cacheDir, 'puppeteer-config.json');
+    writeFileSync(puppeteerConfig, '{"args": ["--no-sandbox"]}', { encoding: 'utf8' });
     writeFileSync(input, str, { encoding: 'utf8' });
-    const cmd = `npx -p @mermaid-js/mermaid-cli mmdc -b transparent -i ${input} -o ${outputOrigin}`;
+    const cmd = `npx -p @mermaid-js/mermaid-cli mmdc -b transparent -p "${puppeteerConfig}" -i "${input}" -o "${outputOrigin}"`;
     console.log(`exec: ${cmd}`);
     execSync(cmd);
     let svg = readFileSync(outputOrigin, { encoding: 'utf8' });
     // get diagram type:
-    const dtype = getDiagramType(svg);
+    const type = getDiagramType(svg);
 
     // remove <style>...</style>:
     svg = deleteRange(svg, '<style>', '</style>');
     // insert class="mermaid":
-    svg = svg.replace('id="my-svg"', `id="my-svg" class="mermaid mermaid-${dtype}"`);
+    svg = svg.replace('id="my-svg"', `id="my-svg" class="mermaid mermaid-${type}"`);
     // replace id 'my-svg' to 'svg-<hash>':
     svg = svg.replace(/my\-svg/g, 'SVG' + hash.substring(0, 10));
     // remove hardcoded color like: fill="#000", stroke="#000"
