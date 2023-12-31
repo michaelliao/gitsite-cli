@@ -61,6 +61,12 @@ function jsonify(obj) {
     }, '  ');
 }
 
+// sleep in ms:
+async function sleep(t = 200) {
+    const sleepFn = () => new Promise(resolve => setTimeout(resolve, t));
+    await sleepFn();
+}
+
 // load config and merge with defaults:
 async function loadConfig() {
     const sourceDir = process.env.sourceDir;
@@ -125,6 +131,15 @@ name: ${gsName}
     // extract zip to directory:
 
     console.log('done.');
+}
+
+async function renderTemplate(ctx, templateEngine, viewName, templateContext) {
+    console.debug(`render ${viewName}:
+${jsonify(templateContext)}
+`);
+    const html = templateEngine.render(viewName, templateContext);
+    ctx.type = 'text/html;charset=utf-8';
+    ctx.body = html;
 }
 
 function sendError(code, ctx, err) {
@@ -385,30 +400,10 @@ async function generateHtmlForPage(templateEngine, viewName, mdFile) {
     const templateContext = await initTemplateContext();
     [templateContext.title, templateContext.content] = markdownTitleContent(mdFilePath);
     templateContext.htmlContent = markdown.render(templateContext.content);
-    console.debug(templateContext.content);
+    console.debug(`render ${viewName}:
+${jsonify(templateContext)}
+`);
     return templateEngine.render(viewName, templateContext);
-}
-
-// generate html for blog full page or content only:
-async function generateHtmlForBlog(templateEngine, name, isFullPage) {
-    const sourceDir = process.env.sourceDir;
-    const templateContext = await initTemplateContext();
-    const blogs = await generateBlogIndex(templateContext.site.locale);
-    if (blogs.length === 0) {
-        throw 'No blog posted.';
-    }
-    const blog = blogs.find(b => b.name === name);
-    if (!blog) {
-        throw 'Blog not found.';
-    }
-    let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs');
-    const markdown = await createMarkdown();
-    blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
-
-    templateContext.sidebar = true;
-    templateContext.blogs = blogs;
-    templateContext.blog = blog;
-    return templateEngine.render(isFullPage ? 'blog.html' : 'blog_content.html', templateContext);
 }
 
 async function buildGitSite() {
@@ -570,6 +565,7 @@ async function serveGitSite(port) {
     // start koa http server:
     const app = new Koa();
     const router = new Router();
+    // log url and handle errors:
     app.use(async (ctx, next) => {
         console.log(`${ctx.request.method}: ${ctx.request.path}`);
         try {
@@ -585,6 +581,10 @@ async function serveGitSite(port) {
         ctx.body = await generateHtmlForPage(templateEngine, 'index.html', 'README.md');
     });
 
+    router.get('/error', async ctx => {
+        throw 'error';
+    });
+
     router.get('/404', async ctx => {
         ctx.type = 'text/html; charset=utf-8';
         ctx.body = await generateHtmlForPage(templateEngine, 'index.html', '404.md');
@@ -596,9 +596,12 @@ async function serveGitSite(port) {
     });
 
     router.get('/pages/:page/index.html', async ctx => {
-        const mdFilePath = path.join('pages', `${ctx.params.page}`, 'README.md');
-        ctx.type = 'text/html; charset=utf-8';
-        ctx.body = await generateHtmlForPage(templateEngine, 'page.html', mdFilePath);
+        const mdFilePath = path.join(process.env.sourceDir, 'pages', `${ctx.params.page}`, 'README.md');
+        const markdown = await createMarkdown();
+        const templateContext = await initTemplateContext();
+        [templateContext.title, templateContext.content] = markdownTitleContent(mdFilePath);
+        templateContext.htmlContent = markdown.render(templateContext.content);
+        renderTemplate(ctx, templateEngine, 'page.html', templateContext);
     });
 
     router.get('/blogs/index.html', async ctx => {
@@ -611,149 +614,132 @@ async function serveGitSite(port) {
         ctx.body = redirectHtml(blogs[0].uri);
     });
 
+
+    // for the next two routers:
+    const processBlog = async function (ctx, templateEngine, name, viewName) {
+        const sourceDir = process.env.sourceDir;
+        const templateContext = await initTemplateContext();
+        const blogs = await generateBlogIndex(templateContext.site.locale);
+        if (blogs.length === 0) {
+            throw 'No blog posted.';
+        }
+        const blog = blogs.find(b => b.name === name);
+        if (!blog) {
+            return sendError(404, ctx, `Blog not found: ${name}`);
+        }
+        let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs');
+        const markdown = await createMarkdown();
+        blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
+        templateContext.sidebar = true;
+        templateContext.blogs = blogs;
+        templateContext.blog = blog;
+        renderTemplate(ctx, templateEngine, viewName, templateContext);
+    }
+
     router.get('/blogs/:name/index.html', async ctx => {
-        console.debug(`process blog: name = ${ctx.params.name}`);
-        ctx.type = 'text/html; charset=utf-8';
-        ctx.body = await generateHtmlForBlog(templateEngine, ctx.params.name, true);
+        await processBlog(ctx, templateEngine, ctx.params.name, 'blog.html');
     });
 
     router.get('/blogs/:name/content.html', async ctx => {
-        console.debug(`process blog content: name = ${ctx.params.name}`);
-        ctx.type = 'text/html; charset=utf-8';
-        ctx.body = await generateHtmlForBlog(templateEngine, ctx.params.name, false);
+        await sleep();
+        await processBlog(ctx, templateEngine, ctx.params.name, 'blog_content.html');
     });
 
     router.get('/books/:book/index.html', async ctx => {
-        try {
-            let book = ctx.params.book;
-            let root = await generateBookIndex(book);
-            if (root.children.length === 0) {
-                throw `Book "${book} is empty.`;
-            }
-            let child = root.children[0];
-            let redirect = `/books/${child.uri}/index.html`;
-            ctx.type = 'text/html; charset=utf-8';
-            ctx.body = redirectHtml(redirect);
-        } catch (err) {
-            sendError(400, ctx, err);
+        let book = ctx.params.book;
+        let root = await generateBookIndex(book);
+        if (root.children.length === 0) {
+            throw `Book "${book} is empty.`;
         }
+        let child = root.children[0];
+        let redirect = `/books/${child.uri}/index.html`;
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = redirectHtml(redirect);
     });
 
-    router.get('/books/:book/:chapters(.*)/index.html', async ctx => {
-        try {
-            let book = ctx.params.book,
-                chapters = ctx.params.chapters.split('/');
-            let root = await generateBookIndex(book);
-            // find chapter by uri:
-            let uri = `${book}/` + chapters.join('/');
-            let chapterList = flattenChapters(root);
-            let node = chapterList.find(c => c.uri === uri);
-            if (node === undefined) {
-                throw `Chapter not found: ${ctx.params.chapters}`;
-            }
-            let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'books', book);
-            const markdown = await createMarkdown();
-            node.htmlContent = markdown.render(beforeMD + node.content + afterMD);
-            const templateContext = await initTemplateContext();
-            templateContext.book = root;
-            templateContext.sidebar = true;
-            templateContext.chapter = node;
-            const html = templateEngine.render('book.html', templateContext);
-            ctx.type = 'text/html; charset=utf-8';
-            ctx.body = html;
-        } catch (err) {
-            sendError(400, ctx, err);
+    // for the next two routers:
+    const processChapter = async function (ctx, templateEngine, viewName) {
+        let book = ctx.params.book,
+            chapters = ctx.params.chapters.split('/');
+        let root = await generateBookIndex(book);
+        // find chapter by uri:
+        let uri = `${book}/` + chapters.join('/');
+        let chapterList = flattenChapters(root);
+        let node = chapterList.find(c => c.uri === uri);
+        if (node === undefined) {
+            return sendError(404, ctx, `Chapter not found: ${ctx.params.chapters}`);
         }
+        let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'books', book);
+        const markdown = await createMarkdown();
+        node.htmlContent = markdown.render(beforeMD + node.content + afterMD);
+        const templateContext = await initTemplateContext();
+        templateContext.book = root;
+        templateContext.sidebar = true;
+        templateContext.chapter = node;
+        renderTemplate(ctx, templateEngine, viewName, templateContext);
+    };
+
+    router.get('/books/:book/:chapters(.*)/index.html', async ctx => {
+        await processChapter(ctx, templateEngine, 'book.html');
     });
 
     router.get('/books/:book/:chapters(.*)/content.html', async ctx => {
-        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-        await sleep(200);
-        try {
-            let book = ctx.params.book,
-                chapters = ctx.params.chapters.split('/');
-            let root = await generateBookIndex(book);
-            // find chapter by uri:
-            let uri = `${book}/` + chapters.join('/');
-            let chapterList = flattenChapters(root);
-            let node = chapterList.find(c => c.uri === uri);
-            if (node === undefined) {
-                throw `Chapter not found: ${ctx.params.chapters}`;
-            }
-            let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'books', book);
-            const markdown = await createMarkdown();
-            node.htmlContent = markdown.render(beforeMD + node.content + afterMD);
-            const templateContext = await initTemplateContext();
-            templateContext.book = root;
-            templateContext.chapter = node;
-            const html = templateEngine.render('book_content.html', templateContext);
-            ctx.type = 'text/html; charset=utf-8';
-            ctx.body = html;
-        } catch (err) {
-            sendError(400, ctx, err);
-        }
+        await sleep();
+        await processChapter(ctx, templateEngine, 'book_content.html');
     });
 
     router.get('/books/:book/:chapters(.*)/:file', async ctx => {
-        try {
-            let book = ctx.params.book,
-                chapters = ctx.params.chapters.split('/');
-            let root = await generateBookIndex(book);
-            // find chapter by uri:
-            let uri = `${book}/` + chapters.join('/');
-            let chapterList = flattenChapters(root);
-            let node = chapterList.find(c => c.uri === uri);
-            if (node === undefined) {
-                throw `Chapter not found: ${ctx.params.chapters}`;
-            }
-            let file = path.join(sourceDir, 'books', node.dir, ctx.params.file);
-            console.debug(`try file: ${file}`);
-            if (isExists(file)) {
-                ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
-                ctx.body = await loadBinaryFile(file);
-            } else {
-                sendError(404, ctx, `File not found: ${file}`);
-            }
-        } catch (err) {
-            sendError(400, ctx, err);
+        let book = ctx.params.book,
+            chapters = ctx.params.chapters.split('/');
+        let root = await generateBookIndex(book);
+        // find chapter by uri:
+        let uri = `${book}/` + chapters.join('/');
+        let chapterList = flattenChapters(root);
+        let node = chapterList.find(c => c.uri === uri);
+        if (node === undefined) {
+            return sendError(404, ctx, `Chapter not found: ${ctx.params.chapters}`);
+        }
+        let file = path.join(sourceDir, 'books', node.dir, ctx.params.file);
+        console.debug(`try file: ${file}`);
+        if (isExists(file)) {
+            ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
+            ctx.body = await loadBinaryFile(file);
+        } else {
+            sendError(404, ctx, `File not found: ${file}`);
         }
     });
 
     router.get('/(.*)', async ctx => {
-        try {
-            let file, p = ctx.request.path.substring(1);
-            if (p.startsWith('blogs/')
-                || p.startsWith('pages/')) {
-                file = path.join(sourceDir, p);
-                console.debug(`try file: ${file}`);
-                if (!isExists(file)) {
-                    return sendError(404, ctx, `File not found: ${file}`);
-                }
-            } else if (p.startsWith('static/')) {
-                file = path.join(sourceDir, p);
-                console.debug(`try file: ${file}`);
-                if (!isExists(file)) {
-                    file = path.join(layoutDir, theme, p);
-                    console.debug(`try file: ${file}`);
-                }
-                if (!isExists(file)) {
-                    return sendError(404, ctx, `File not found: ${file}`);
-                }
-            } else if (p === 'favicon.ico') {
-                file = path.join(sourceDir, p);
-                console.debug(`try file: ${file}`);
-                if (!isExists(file)) {
-                    return sendError(404, ctx, `File not found: ${file}`);
-                }
-            }
-            else {
+        let file, p = ctx.request.path.substring(1);
+        if (p.startsWith('blogs/')
+            || p.startsWith('pages/')) {
+            file = path.join(sourceDir, p);
+            console.debug(`try file: ${file}`);
+            if (!isExists(file)) {
                 return sendError(404, ctx, `File not found: ${file}`);
             }
-            ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
-            ctx.body = await loadBinaryFile(file);
-        } catch (err) {
-            sendError(400, ctx, err);
+        } else if (p.startsWith('static/')) {
+            file = path.join(sourceDir, p);
+            console.debug(`try file: ${file}`);
+            if (!isExists(file)) {
+                file = path.join(layoutDir, theme, p);
+                console.debug(`try file: ${file}`);
+            }
+            if (!isExists(file)) {
+                return sendError(404, ctx, `File not found: ${file}`);
+            }
+        } else if (p === 'favicon.ico') {
+            file = path.join(sourceDir, p);
+            console.debug(`try file: ${file}`);
+            if (!isExists(file)) {
+                return sendError(404, ctx, `File not found: ${file}`);
+            }
         }
+        else {
+            return sendError(404, ctx, `File not found: ${file}`);
+        }
+        ctx.type = mime.getType(ctx.request.path) || 'application/octet-stream';
+        ctx.body = await loadBinaryFile(file);
     });
 
     app.on('error', err => {
