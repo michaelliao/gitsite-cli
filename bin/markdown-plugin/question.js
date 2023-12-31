@@ -122,7 +122,7 @@ ${inputs}
             return parseError(`date answer must be YYYY-MM-DD format`, str);
         }
         let ignorecase = arg === 'text' && args[1] === 'ignorecase';
-        console.debug(`${ignorecase}: type=${type}, args=${JSON.stringify(args)}`);
+        console.debug(`${ignorecase}: args=${JSON.stringify(args)}`);
         let ok_exp = `let ok='${encodeString(a)}'===${js_input_value}`;
         if (ignorecase) {
             ok_exp = `let ok='${encodeString(a.toLowerCase())}'===${js_input_value}.toLowerCase()`;
