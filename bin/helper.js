@@ -14,25 +14,21 @@ export function isExists(...paths) {
 // return ['title', 'md-content']
 export function markdownTitleContent(mdFilePath) {
     const liner = new LineByLine(mdFilePath);
-    let line, title = '';
+    let line, title = '', content = [];
     while (line = liner.next()) {
         let s = line.toString('utf8').trim();
         if (s) {
             if (s.startsWith('# ')) {
                 if (title === '') {
                     title = s.substring(2).trim();
-                } else {
-                    break;
                 }
-            } else {
-                break;
             }
+            break;
         }
     }
     if (!title) {
         throw new Error(`Markdown file "${mdFilePath}" must have a title in first line defined as "# title".`);
     }
-    let content = [];
     while (line = liner.next()) {
         content.push(line.toString('utf8'));
     }
