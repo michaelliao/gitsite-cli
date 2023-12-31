@@ -110,9 +110,18 @@ function flatternNode(array, node) {
 
 export function flattenChapters(root) {
     // depth-first search:
-    let arr = [];
+    const arr = [];
     for (let child of root.children) {
         flatternNode(arr, child);
+    }
+    if (arr.length === 0) {
+        throw 'empty chapters';
+    }
+    const len = arr.length;
+    for (let i = 0; i < len; i++) {
+        const element = arr[i];
+        element.prev = i === 0 ? null : arr[i - 1];
+        element.next = i < len - 1 ? arr[i + 1] : null;
     }
     return arr;
 }
