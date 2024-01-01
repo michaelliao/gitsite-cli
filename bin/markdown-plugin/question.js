@@ -75,7 +75,7 @@ const js_show_ok = "this.getElementsByClassName('question correct')[0].style.dis
 
 export default function (md, args, str) {
     console.debug(`args=${JSON.stringify(args)}`);
-    let arg = args[0] || '';
+    let arg = args[0].toLowerCase() || '';
     let arr = str.split(/\-{3,}/g);
     if (arr.length !== 2) {
         return parseError(`invalid markdown`, str);
@@ -121,7 +121,7 @@ ${inputs}
         if (arg === 'date' && parseDate(a) === null) {
             return parseError(`date answer must be YYYY-MM-DD format`, str);
         }
-        let ignorecase = arg === 'text' && args[1] === 'ignorecase';
+        let ignorecase = arg === 'text' && args[1] && args[1].toLowerCase() === 'ignorecase';
         console.debug(`${ignorecase}: args=${JSON.stringify(args)}`);
         let ok_exp = `let ok='${encodeString(a)}'===${js_input_value}`;
         if (ignorecase) {

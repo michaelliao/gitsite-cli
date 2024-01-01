@@ -79,8 +79,13 @@ async function createMarkdown(opt) {
                 info = token.info ? unescapeAll(token.info).trim() : '';
 
             if (info) {
-                let arr = info.toLowerCase().split(/\s+/g);
-                let type = arr.shift();
+                let arr = info.match(/(?:[^\s"]+|"[^"]*")+/g).map(s => {
+                    if (s.startsWith('"') && s.endsWith('"')) {
+                        s = s.substring(1, s.length - 1);
+                    }
+                    return s;
+                });
+                let type = arr.shift().toLowerCase();
                 if (codeBlockPlugins.has(type)) {
                     console.log(`use markdown plugin ${type}.`);
                     let plugin = codeBlockPlugins.get(type);

@@ -81,8 +81,9 @@ export default function (md, args, str) {
     console.debug(`mermaid args=${JSON.stringify(args)}`);
     let align = 'left';
     for (let arg of args) {
-        if (arg === 'left' || arg === 'center' || arg === 'right') {
-            align = arg;
+        let larg = arg.toLowerCase();
+        if (larg === 'left' || larg === 'center' || larg === 'right') {
+            align = larg;
         }
     }
     // because it is very slow to generate diagrams to svg,

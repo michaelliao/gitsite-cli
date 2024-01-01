@@ -133,8 +133,9 @@ name: ${gsName}
     console.log('done.');
 }
 
+// render template by view name and context, then send html by ctx:
 async function renderTemplate(ctx, templateEngine, viewName, templateContext) {
-    console.debug(`render ${viewName}:
+    console.debug(`render ${viewName}, context:
 ${jsonify(templateContext)}
 `);
     const html = templateEngine.render(viewName, templateContext);
@@ -142,6 +143,7 @@ ${jsonify(templateContext)}
     ctx.body = html;
 }
 
+// send error with http code and error object:
 function sendError(code, ctx, err) {
     console.error(err);
     ctx.status = code;
@@ -161,6 +163,7 @@ ${err.toString()}</code></pre>
 `;
 }
 
+// generate redirect html:
 function redirectHtml(redirect) {
     return `<html>
 <head><meta http-equiv="refresh" content="0;URL='${redirect}'" /></head>
@@ -168,6 +171,7 @@ function redirectHtml(redirect) {
 </html>`
 }
 
+// init template context by loading config:
 async function initTemplateContext() {
     const templateContext = await loadConfig();
     templateContext.__mode__ = process.env.mode;
