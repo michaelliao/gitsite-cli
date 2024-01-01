@@ -3,7 +3,7 @@ Render a code block as ascii.
 
 Source:
 
-```qrcode ecl-m w-256 p-2 [left|center|right] info link
+```qrcode ecl=m width=256 padding=2 [left|center|right] info link
 https://gitsite.org/
 ```
 
@@ -21,9 +21,9 @@ Rendered as:
 
 instruction: qrcode
 arguments:
-  ecl-[l|m|h|q]: error correction level, e.g. 'ecl-q', default to 'ecl-m'.
-  w-[200]: width in pixel, e.g. 'w-200', default to 'w-256'.
-  p-[4]: padding in line-width, e.g. 'p-4', default to 'p-0'.
+  ecl=[l|m|h|q]: error correction level, e.g. 'ecl=q', default to 'ecl=m'.
+  width=[200]: width in pixel, e.g. 'width=200', default to 'width=256'.
+  padding=[4]: padding in line-width, e.g. 'padding=4', default to 'padding=0'.
   info: display qrcode information, default to none if not specified.
   link: auto link if qrcode is an URL and info is specified.
 */
@@ -62,23 +62,23 @@ export default function (md, args, str) {
     // parse args:
     for (let arg of args) {
         let larg = arg.toLowerCase();
-        // ecl like 'ecl-m':
-        if (larg.startsWith('ecl-')) {
-            ecl = larg.substring(4);
+        // ecl like 'ecl=m':
+        if (larg.startsWith('ecl=')) {
+            ecl = larg.substring('ecl='.length);
             if (!ECL_SET.has(ecl)) {
                 console.warn(`invalid qrcode ecl: ${arg}`);
                 ecl = 'm';
             }
-        } else if (larg.startsWith('w-')) {
-            // width like 'w-256':
-            width = parseInt(larg.substring(2));
+        } else if (larg.startsWith('width=')) {
+            // width like 'width=256':
+            width = parseInt(larg.substring('width='.length));
             if (isNaN(width) || width < 10) {
                 console.warn(`invalid qrcode width: ${arg}`);
                 width = 256;
             }
-        } else if (larg.startsWith('p-')) {
-            // padding like 'p-4':
-            padding = parseInt(larg.substring(2));
+        } else if (larg.startsWith('padding=')) {
+            // padding like 'padding=4':
+            padding = parseInt(larg.substring('padding='.length));
             if (isNaN(padding) || padding < 0) {
                 console.warn(`invalid qrcode padding: ${arg}`);
                 padding = 0;
