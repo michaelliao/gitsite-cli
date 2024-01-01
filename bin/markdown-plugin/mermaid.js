@@ -3,7 +3,7 @@ Render a code block as mermaid diagram.
 
 Source:
 
-```mermaid
+```mermaid [left|center|right]
 flowchart LR
     mddocs(Markdown Docs)
     themes(HTML Templates)
@@ -21,7 +21,7 @@ flowchart LR
 
 Rendered as:
 
-<svg id="SVG1a2b3c" class="mermaid">
+<svg id="SVG1a2b3c" class="mermaid mermaid-flowchart">
   <g><path>...</path></g>
 </svg>
 */
@@ -73,15 +73,26 @@ function sha1(str) {
     return hash.digest('hex');
 }
 
+function wrap(svg, align) {
+    return `<div class="mermaid-wrapper" style="text-align:${align}">${svg}</div>`;
+}
+
 export default function (md, args, str) {
     console.debug(`mermaid args=${JSON.stringify(args)}`);
+    let align = 'left';
+    for (let arg of args) {
+        if (arg === 'left' || arg === 'center' || arg === 'right') {
+            align = arg;
+        }
+    }
     // because it is very slow to generate diagrams to svg,
     // we cache the generated svg by hash:
     const hash = sha1(str);
     const outputFile = path.join(process.env.cacheDir, `${hash}.svg`);
     if (!process.env.disableCache && existsSync(outputFile)) {
         console.log(`load svg from cache: ${outputFile}`);
-        return readFileSync(outputFile, { encoding: 'utf8' });
+        let svg = readFileSync(outputFile, { encoding: 'utf8' });
+        return wrap(svg, align);
     }
     const inputFile = path.join(process.env.cacheDir, `${hash}.mmd`);
     const outputOriginFile = path.join(process.env.cacheDir, `${hash}-ori.svg`);
@@ -117,5 +128,5 @@ export default function (md, args, str) {
     svg = deleteRange(svg, 'stroke: rgb(', ');');
     // update output file:
     writeFileSync(outputFile, svg, { encoding: 'utf8' });
-    return svg + '\n';
+    return wrap(svg, align);
 };
