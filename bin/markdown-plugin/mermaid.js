@@ -77,6 +77,30 @@ function wrap(svg, align) {
     return `<div class="mermaid-wrapper" style="text-align:${align}">${svg}</div>`;
 }
 
+const postProcessByType = {
+    pie: (s) => {
+        // append color 'svg-mermaid-fill-color-#' for each <path class="pieCircle" ...>
+        for (let n = 0; ; n++) {
+            const search = 'class="pieCircle"';
+            const repl = `class="pieCircle svg-mermaid-fill-color-${n & 7}"`;
+            if (s.indexOf(search) < 0) {
+                break;
+            }
+            s = s.replace(search, repl);
+        }
+        // append color for each <g class="legend" ...>
+        for (let n = 0; ; n++) {
+            const search = 'class="legend"';
+            const repl = `class="legend svg-mermaid-fill-color-${n & 7}"`;
+            if (s.indexOf(search) < 0) {
+                break;
+            }
+            s = s.replace(search, repl);
+        }
+        return s;
+    }
+}
+
 export default function (md, args, str) {
     console.debug(`mermaid args=${JSON.stringify(args)}`);
     let align = 'left';
@@ -127,7 +151,14 @@ export default function (md, args, str) {
     svg = deleteRange(svg, 'stroke="hsl(', ')"');
     svg = deleteRange(svg, 'fill: rgb(', ');');
     svg = deleteRange(svg, 'stroke: rgb(', ');');
+
+    // post process:
+    const postProcessFn = postProcessByType[type];
+    if (postProcessFn) {
+        svg = postProcessFn(svg);
+    }
     // update output file:
     writeFileSync(outputFile, svg, { encoding: 'utf8' });
+    console.log(`generate mermaid ok. type = ${type}`);
     return wrap(svg, align);
 };
