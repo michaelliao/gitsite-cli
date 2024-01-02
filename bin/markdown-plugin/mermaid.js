@@ -77,6 +77,13 @@ function wrap(svg, align) {
     return `<div class="mermaid-wrapper" style="text-align:${align}">${svg}</div>`;
 }
 
+const preProcessByType = {
+    statediagram: (s) => {
+        s = s.replace('class="statediagram"', '');
+        return s;
+    }
+};
+
 const postProcessByType = {
     pie: (s) => {
         // append color 'svg-mermaid-fill-color-#' for each <path class="pieCircle" ...>
@@ -99,7 +106,7 @@ const postProcessByType = {
         }
         return s;
     }
-}
+};
 
 export default function (md, args, str) {
     console.debug(`mermaid args=${JSON.stringify(args)}`);
@@ -137,6 +144,12 @@ export default function (md, args, str) {
     let svg = readFileSync(outputOriginFile, { encoding: 'utf8' });
     // get diagram type:
     const type = getDiagramType(svg);
+
+    // pre process:
+    const preProcessFn = preProcessByType[type];
+    if (preProcessFn) {
+        svg = preProcessFn(svg);
+    }
 
     // remove <style>...</style>:
     svg = deleteRange(svg, '<style>', '</style>');
