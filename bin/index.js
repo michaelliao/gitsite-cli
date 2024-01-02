@@ -29,6 +29,10 @@ const DEFAULT_CONFIG = {
             name: 'GitSite',
             github: 'https://github.com/michaelliao/gitsite'
         },
+        git: {
+            baseUrl: '',
+            link: true
+        },
         blogs: {
             title: 'Blogs'
         },
@@ -91,6 +95,7 @@ function loadBlogInfo(sourceDir, name, locale) {
     return {
         dir: name,
         name: name,
+        git: `/blogs/${name}/README.md`,
         uri: `/blogs/${name}/index.html`,
         title: title,
         content: content,
@@ -256,6 +261,7 @@ async function generateBookIndex(bookDirName) {
             level: parent === null ? 0 : parent.level + 1,
             marker: parent === null ? '' : parent.marker ? parent.marker + '.' + (index + 1) : (index + 1).toString(),
             dir: dir,
+            git: `/books/${dir}/README.md`,
             order: order,
             title: title,
             content: content,
@@ -495,6 +501,7 @@ async function buildGitSite() {
             const pageHtmlFile = path.join(outputDir, 'pages', pageName, 'index.html');
             const page = {};
             [page.title, page.content] = markdownTitleContent(pageMdFile);
+            page.git = `/pages/${pageName}/README.md`;
             page.htmlContent = markdown.render(page.content);
             templateContext.page = page;
             await writeTextFile(pageHtmlFile, templateEngine.render('page.html', templateContext));
@@ -515,6 +522,7 @@ async function buildGitSite() {
             const htmlFile = path.join(outputDir, htmlName);
             const page = {};
             [page.title, page.content] = markdownTitleContent(mdFile);
+            page.git = `/${mdName}`;
             page.htmlContent = markdown.render(page.content);
             templateContext.page = page;
             await writeTextFile(htmlFile, templateEngine.render('page.html', templateContext));
@@ -588,10 +596,11 @@ async function serveGitSite(port) {
     });
 
     // for the next three routers:
-    const processSimplePage = async function (ctx, templateEngine, mdFile) {
+    const processSimplePage = async function (ctx, templateEngine, mdFile, git) {
         const templateContext = await initTemplateContext();
         const page = {};
         [page.title, page.content] = markdownTitleContent(mdFile);
+        page.git = git;
         page.htmlContent = markdown.render(page.content);
         templateContext.page = page;
         renderTemplate(ctx, templateEngine, 'page.html', templateContext);
@@ -599,17 +608,18 @@ async function serveGitSite(port) {
 
     router.get('/', async ctx => {
         const mdFile = path.join(sourceDir, 'README.md');
-        await processSimplePage(ctx, templateEngine, mdFile);
+        await processSimplePage(ctx, templateEngine, mdFile, '/README.md');
     });
 
     router.get('/404', async ctx => {
         const mdFile = path.join(sourceDir, '404.md');
-        await processSimplePage(ctx, templateEngine, mdFile);
+        await processSimplePage(ctx, templateEngine, mdFile, '/404.md');
     });
 
     router.get('/pages/:page/index.html', async ctx => {
-        const mdFile = path.join(sourceDir, 'pages', `${ctx.params.page}`, 'README.md');
-        await processSimplePage(ctx, templateEngine, mdFile);
+        const pageName = ctx.params.page;
+        const mdFile = path.join(sourceDir, 'pages', pageName, 'README.md');
+        await processSimplePage(ctx, templateEngine, mdFile, `/pages/${pageName}/README.md`);
     });
 
     router.get('/static/search-index.js', async ctx => {
