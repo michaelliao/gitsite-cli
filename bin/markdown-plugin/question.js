@@ -18,6 +18,7 @@ Rendered as:
   </form>
 </div>
 */
+import { parseArgs, checkEnumArg, escapeHtml } from '../plugin_helper.js';
 
 function parseYesNo(s, index) {
     // '    Mr Bob' => { text: 'Mr Bob', value: 1, correct: false }
@@ -65,41 +66,23 @@ function generateRadioOrCheckbox(yn) {
     return `<div><label class="question"><input type="${yn.type}" name="question" value="${yn.value}" class="question"> ${yn.text}</label></div>`
 }
 
-function unquote(s) {
-    if (s.startsWith('"') && s.endsWith('"')) {
-        s = s.substring(1, s.length - 1);
-    }
-    return s;
-}
-
 const js_input_sum = "Array.from(this.getElementsByTagName('input')).filter(i=>i.checked).reduce((acc,i)=>acc+parseInt(i.value),0)";
 const js_input_value = "this.getElementsByTagName('input')[0].value.trim()";
 const js_show_ok = "this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null;";
 
 export default function (md, args, str) {
     console.debug(`args=${JSON.stringify(args)}`);
-    let type = 'text'; // default type is 'text'
-    let ignorecase = false;
-    let submit = 'Submit';
-    let correct = 'Correct';
-    let wrong = 'Wrong';
-    for (let arg of args) {
-        let larg = arg.toLowerCase();
-        if (larg === 'text' || larg === 'date' || larg === 'radio' || larg === 'checkbox') {
-            type = larg;
-        } else if (larg === 'ignorecase') {
-            ignorecase = true;
-        } else if (larg.startsWith('submit=')) {
-            submit = unquote(arg.substring('submit='.length));
-        } else if (larg.startsWith('correct=')) {
-            correct = unquote(arg.substring('correct='.length));
-        } else if (larg.startsWith('wrong=')) {
-            wrong = unquote(arg.substring('wrong='.length));
-        }
-    }
-    const span_correct = `<span class="question correct" style="display:none"><span>${correct}</span></span>`;
-    const span_wrong = `<span class="question wrong" style="display:none"><span>${wrong}</span></span>`;
-    const button_submit = `<button type="submit" class="question"><span>${submit}</span></button>`;
+    const kv = parseArgs(args);
+
+    const type = checkEnumArg(kv['type'], ['text', 'date', 'radio', 'checkbox']); // default type is 'text'
+    const ignorecase = !!kv['ignorecase'];
+    const submit = kv['submit'] || 'Submit';
+    const correct = kv['correct'] || 'Correct';
+    const wrong = kv['wrong'] || 'Wrong';
+
+    const span_correct = `<span class="question correct" style="display:none"><span>${escapeHtml(correct)}</span></span>`;
+    const span_wrong = `<span class="question wrong" style="display:none"><span>${escapeHtml(wrong)}</span></span>`;
+    const button_submit = `<button type="submit" class="question"><span>${escapeHtml(submit)}</span></button>`;
 
     let arr = str.split(/\-{3,}/g);
     if (arr.length !== 2) {

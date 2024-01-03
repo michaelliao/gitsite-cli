@@ -1,9 +1,9 @@
 /*
-Render a code block as ascii.
+Render a code block as qrcode.
 
 Source:
 
-```qrcode ecl=m width=256 padding=2 [left|center|right] info link
+```qrcode ecl=m width=256 padding=2 align=[left|center|right] info link
 https://gitsite.org/
 ```
 
@@ -21,30 +21,14 @@ Rendered as:
 
 instruction: qrcode
 arguments:
-  ecl=[l|m|h|q]: error correction level, e.g. 'ecl=q', default to 'ecl=m'.
+  ecl=[l|m|h|q]: error correction level, e.g. 'ecl=q', default to 'ecl=l'.
   width=[200]: width in pixel, e.g. 'width=200', default to 'width=256'.
-  padding=[4]: padding in line-width, e.g. 'padding=4', default to 'padding=0'.
+  padding=[0]: padding in line-width, e.g. 'padding=4', default to 'padding=0'.
   info: display qrcode information, default to none if not specified.
   link: auto link if qrcode is an URL and info is specified.
 */
 import QRCode from "qrcode-svg";
-
-// deleteRange('Hello, <b>x</b>World<b>y</b>!', '<b>', '</b>') => 'Hello, World!'
-function deleteRange(str, start, end) {
-    for (; ;) {
-        let n1 = str.indexOf(start);
-        if (n1 < 0) {
-            return str;
-        }
-        let n2 = str.indexOf(end, n1 + start.length);
-        if (n2 < 0) {
-            throw `substring ${end} not found.`;
-        }
-        str = str.substring(0, n1) + str.substring(n2 + end.length);
-    }
-}
-
-const ECL_SET = new Set(['l', 'm', 'h', 'q']);
+import { checkEnumArg, checkIntArg, deleteAllByRange, parseArgs } from "../plugin_helper.js";
 
 function wrap(svg, align) {
     return `<div class="qrcode-wrapper" style="text-align:${align}">${svg}</div>`;
@@ -52,65 +36,32 @@ function wrap(svg, align) {
 
 export default function (md, args, str) {
     console.debug(`generate qrcode: args = ${JSON.stringify(args)}`);
+    const kv = parseArgs(args);
     // default args:
-    let ecl = 'm';
-    let width = 256;
-    let padding = 0;
-    let align = 'left';
-    let info = false;
-    let link = false;
-    // parse args:
-    for (let arg of args) {
-        let larg = arg.toLowerCase();
-        // ecl like 'ecl=m':
-        if (larg.startsWith('ecl=')) {
-            ecl = larg.substring('ecl='.length);
-            if (!ECL_SET.has(ecl)) {
-                console.warn(`invalid qrcode ecl: ${arg}`);
-                ecl = 'm';
-            }
-        } else if (larg.startsWith('width=')) {
-            // width like 'width=256':
-            width = parseInt(larg.substring('width='.length));
-            if (isNaN(width) || width < 10) {
-                console.warn(`invalid qrcode width: ${arg}`);
-                width = 256;
-            }
-        } else if (larg.startsWith('padding=')) {
-            // padding like 'padding=4':
-            padding = parseInt(larg.substring('padding='.length));
-            if (isNaN(padding) || padding < 0) {
-                console.warn(`invalid qrcode padding: ${arg}`);
-                padding = 0;
-            }
-        } else if (larg === 'left' || larg === 'center' || larg === 'right') {
-            align = larg;
-        } else if (larg === 'info') {
-            info = true;
-        } else if (larg === 'link') {
-            link = true;
-        } else {
-            console.warn(`invalid qrcode argument: ${arg}`);
-        }
-    }
+    const align = checkEnumArg(kv['align'], ['left', 'center', 'right']);
+    const ecl = checkEnumArg(kv['ecl'], ['l', 'm', 'h', 'q']);
+    const info = !!kv['info'];
+    const link = info && kv['link'];
+    const width = checkIntArg(kv['width'], 200, x => x >= 10 && x <= 10000);
+    const padding = checkIntArg(kv['padding'], 0, x => x >= 0 && x <= 8);
 
-    let qrcode = new QRCode({
+    const qrcode = new QRCode({
         content: str.trim(),
         width: width,
         height: width,
         padding: padding,
-        color: '#000000',
+        color: '#123456',
         background: 'transparent',
         ecl: ecl.toUpperCase(),
         join: true
     });
     let svg = qrcode.svg();
     // remove <?xml ...?>:
-    svg = deleteRange(svg, '<?xml', '?>');
+    svg = deleteAllByRange(svg, '<?xml', '?>');
     // set fill=currentColor:
     svg = svg.replace('<svg xmlns="http://www.w3.org/2000/svg"', '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor"');
-    // remove fill:#000000:
-    svg = svg.replace(/fill\:\#000000\;/g, '');
+    // remove fill:#123456:
+    svg = svg.replace(/fill\:\#123456\;/g, '');
     if (info) {
         let s = str;
         if (link) {
