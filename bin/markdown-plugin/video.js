@@ -65,7 +65,7 @@ const alignStyles = {
 }
 
 export default function (md, args, str) {
-    console.debug(`alert args=${JSON.stringify(args)}`);
+    console.debug(`video args=${JSON.stringify(args)}`);
     const kv = parseArgs(args);
     const align = checkEnumArg(kv['align'], ['left', 'center', 'right']);
     const autoplay = !!kv['autoplay'];

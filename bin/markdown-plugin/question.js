@@ -71,7 +71,7 @@ const js_input_value = "this.getElementsByTagName('input')[0].value.trim()";
 const js_show_ok = "this.getElementsByClassName('question correct')[0].style.display=ok?null:'none'; this.getElementsByClassName('question wrong')[0].style.display=ok?'none':null;";
 
 export default function (md, args, str) {
-    console.debug(`args=${JSON.stringify(args)}`);
+    console.debug(`question args=${JSON.stringify(args)}`);
     const kv = parseArgs(args);
 
     const type = checkEnumArg(kv['type'], ['text', 'date', 'radio', 'checkbox']); // default type is 'text'
