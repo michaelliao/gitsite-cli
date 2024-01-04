@@ -1,4 +1,4 @@
-``` question radio
+``` question type=radio
 Who created *Java*?
 ----
     James *Bond*
@@ -6,7 +6,7 @@ Who created *Java*?
     James Simons
 ```
 
-``` question checkbox
+``` question type=checkbox
 Guido *van* Rossum is:
 ----
     American
@@ -16,19 +16,19 @@ Guido *van* Rossum is:
 [x] Earthling
 ```
 
-``` question text
+``` question type=text
 The largest planet in the solar system is:
 ----
 Jupiter
 ```
 
-``` question text ignorecase
+``` question type=text ignorecase
 The largest planet in the solar system is (ignore case):
 ----
 MR'Bob
 ```
 
-``` question date
+``` question type=date
 When were the first modern Olympic Games held?
 ----
 1896-04-06

@@ -1,20 +1,20 @@
-``` alert info
-Info: `test` mode.
+``` alert type=note
+Note: `test` mode.
 ```
 
-``` alert success
-**Success** message.
+``` alert type=tip
+This is a **Tip**.
 ```
 
-``` alert warning
+``` alert type=warning
 Warning:
 system *busy*.
 ```
 
-``` alert danger
-Alert: <span class="red">danger</span>!
+``` alert type=caution
+<span class="red">Error</span>: file not found.
 ```
 
-``` alert
-Default to [info](/message?type=info) message.
+``` alert type=caution title="Not Found"
+<span class="red">Error</span>: file not found.
 ```
