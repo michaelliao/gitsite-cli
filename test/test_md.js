@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, mkdirSync, rmSync } from 'node:fs';
 import createMarkdown from '../bin/markdown.js';
 import { readFile } from 'node:fs/promises';
 
@@ -14,9 +14,12 @@ async function check_file(name) {
 
 process.env.disableCache = true;
 process.env.cacheDir = path.join(process.cwd(), '.cache');
-if (!existsSync(process.env.cacheDir)) {
-    mkdirSync(process.env.cacheDir);
+
+// clean cache dir:
+if (existsSync(process.env.cacheDir)) {
+    rmSync(process.env.cacheDir, { recursive: true });
 }
+mkdirSync(process.env.cacheDir);
 
 const tests = readdirSync('test/resources').filter(name => name.endsWith('.md')).map(name => name.substring(0, name.length - 3));
 
