@@ -410,7 +410,6 @@ async function generateSearchIndex() {
 
 async function buildGitSite() {
     const sourceDir = process.env.sourceDir;
-    const layoutDir = process.env.layoutDir;
     const outputDir = process.env.outputDir;
     console.log(`build git site: ${sourceDir} to: ${outputDir}`);
     if (fsSync.existsSync(outputDir)) {
@@ -420,9 +419,8 @@ async function buildGitSite() {
     fsSync.mkdirSync(outputDir);
     // create template engine:
     const config = await loadConfig();
-    const theme = config.site.theme;
     // theme dir:
-    const themeDir = path.join(layoutDir, theme);
+    const themeDir = path.join(process.env.themesDir, config.site.theme);
     const templateEngine = createTemplateEngine(themeDir);
     const markdown = await createMarkdown();
     // run pre-build.js:
@@ -563,7 +561,6 @@ async function buildGitSite() {
 
 async function serveGitSite(port) {
     const sourceDir = process.env.sourceDir;
-    const layoutDir = process.env.layoutDir;
     // check port:
     if (port < 1 || port > 65535) {
         console.error(`port is invalid: ${port}`);
@@ -571,8 +568,8 @@ async function serveGitSite(port) {
     }
     // create template engine:
     const config = await loadConfig();
-    const theme = config.site.theme;
-    const templateEngine = createTemplateEngine(path.join(layoutDir, theme));
+    const themeDir = path.join(process.env.themesDir, config.site.theme);
+    const templateEngine = createTemplateEngine(themeDir);
     const markdown = await createMarkdown();
 
     const searchIndex = await generateSearchIndex();
@@ -742,7 +739,7 @@ async function serveGitSite(port) {
             file = path.join(sourceDir, p);
             console.debug(`try file: ${file}`);
             if (!isExists(file)) {
-                file = path.join(layoutDir, theme, p);
+                file = path.join(themeDir, p);
                 console.debug(`try file: ${file}`);
             }
             if (!isExists(file)) {
@@ -812,7 +809,7 @@ function main() {
     program.command('serve')
         .description('Run a web server to preview the site in local environment.')
         .option('-s, --source <directory>', 'source directory.', 'source')
-        .option('-l, --layout <directory>', 'layout directory.', 'layout')
+        .option('-t, --themes <directory>', 'themes directory.', 'themes')
         .option('-p, --port <port>', 'local server port.', '3000')
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
@@ -820,11 +817,11 @@ function main() {
             process.env.timestamp = Date.now();
             process.env.mode = 'serve';
             process.env.sourceDir = normalizeAndCheckDir(options.source);
-            process.env.layoutDir = normalizeAndCheckDir(options.layout);
+            process.env.themesDir = normalizeAndCheckDir(options.themes);
             process.env.cacheDir = normalizeAndMkDir('.cache');
             process.chdir(process.env.sourceDir);
-            console.log(`site dir: ${process.env.sourceDir}`);
-            console.log(`layout dir: ${process.env.layoutDir}`);
+            console.log(`source dir: ${process.env.sourceDir}`);
+            console.log(`themes dir: ${process.env.themesDir}`);
             console.log(`cache dir: ${process.env.cacheDir}`);
             await serveGitSite(parseInt(options.port));
         });
@@ -832,7 +829,7 @@ function main() {
     program.command('build')
         .description('Build static web site.')
         .option('-s, --source <directory>', 'source directory.', 'source')
-        .option('-l, --layout <directory>', 'layout directory.', 'layout')
+        .option('-t, --themes <directory>', 'themes directory.', 'themes')
         .option('-o, --output <directory>', 'output directory.', 'dist')
         .option('-v, --verbose', 'make more logs for debugging.')
         .action(async options => {
@@ -840,12 +837,12 @@ function main() {
             process.env.timestamp = Date.now();
             process.env.mode = 'build';
             process.env.sourceDir = normalizeAndCheckDir(options.source);
-            process.env.layoutDir = normalizeAndCheckDir(options.layout);
+            process.env.themesDir = normalizeAndCheckDir(options.themes);
             process.env.cacheDir = normalizeAndMkDir('.cache');
             process.env.outputDir = path.resolve(options.output);
             process.chdir(process.env.sourceDir);
-            console.log(`site dir: ${process.env.sourceDir}`);
-            console.log(`layout dir: ${process.env.layoutDir}`);
+            console.log(`source dir: ${process.env.sourceDir}`);
+            console.log(`themes dir: ${process.env.themesDir}`);
             console.log(`cache dir: ${process.env.cacheDir}`);
             console.log(`output dir: ${process.env.outputDir}`);
             await buildGitSite();
