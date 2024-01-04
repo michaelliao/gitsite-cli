@@ -25,7 +25,7 @@
     "gitsite-cli": "./bin/index.js"
   },
   "scripts": {
-    "test": "echo NoTest"
+    "test": "run_tests.sh"
   },
   "dependencies": {
     "@koa/router": "^12.0.1",
