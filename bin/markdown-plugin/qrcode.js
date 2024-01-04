@@ -3,7 +3,7 @@ Render a code block as qrcode.
 
 Source:
 
-```qrcode ecl=m width=256 padding=2 align=[left|center|right] info link
+```qrcode ecl=m width=256 align=[left|center|right] info link
 https://gitsite.org/
 ```
 
@@ -23,7 +23,6 @@ instruction: qrcode
 arguments:
   ecl=[l|m|h|q]: error correction level, e.g. 'ecl=q', default to 'ecl=l'.
   width=[200]: width in pixel, e.g. 'width=200', default to 'width=256'.
-  padding=[0]: padding in line-width, e.g. 'padding=4', default to 'padding=0'.
   info: display qrcode information, default to none if not specified.
   link: auto link if qrcode is an URL and info is specified.
 */
@@ -43,13 +42,16 @@ export default function (md, args, str) {
     const info = !!kv['info'];
     const link = info && kv['link'];
     const width = checkIntArg(kv['width'], 200, x => x >= 10 && x <= 10000);
-    const padding = checkIntArg(kv['padding'], 0, x => x >= 0 && x <= 8);
+    const image = kv['image'];
+    const defaultImageSize = parseInt(width / 5);
+    const maxImageSize = width / 2;
+    const imageWidth = checkIntArg(kv['image-width'], defaultImageSize, x => x > 0 && x < maxImageSize);
 
     const qrcode = new QRCode({
         content: str.trim(),
         width: width,
         height: width,
-        padding: padding,
+        padding: 0,
         color: '#123456',
         background: 'transparent',
         ecl: ecl.toUpperCase(),
@@ -62,6 +64,14 @@ export default function (md, args, str) {
     svg = svg.replace('<svg xmlns="http://www.w3.org/2000/svg"', '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor"');
     // remove fill:#123456:
     svg = svg.replace(/fill\:\#123456\;/g, '');
+
+    // append image if set:
+    if (image) {
+        const imageX = (width - imageWidth) / 2;
+        const imageSvg = `<image width="${imageWidth}" height="${imageWidth}" x="${imageX}" y="${imageX}" href="${image}" />`;
+        svg = svg.replace('</svg>', `${imageSvg}</svg>`);
+    }
+
     if (info) {
         let s = str;
         if (link) {
