@@ -388,9 +388,9 @@ async function generateSearchIndex() {
     const uris = docs.map(doc => doc.uri);
     const titles = docs.map(doc => doc.title);
     const contents = docs.map(doc => shorten(doc.content));
-    js_code.push(`const uris=${JSON.stringify(uris)}`);
-    js_code.push(`const titles=${JSON.stringify(titles)}`);
-    js_code.push(`const contents=${JSON.stringify(contents)}`);
+    js_code.push(`const uris=${JSON.stringify(uris)};`);
+    js_code.push(`const titles=${JSON.stringify(titles)};`);
+    js_code.push(`const contents=${JSON.stringify(contents)};`);
     js_code.push(`const searchFn = (q,limit=20) => {
    let rs = _searcher_.search(q,limit);
    return rs.map((id)=>{return {uri: uris[id], title: titles[id], content: contents[id]};});
