@@ -91,7 +91,7 @@ function chapterURI(dir) {
     return [parseInt(groups[1]), groups[2]];
 }
 
-function loadBlogInfo(sourceDir, name, locale) {
+function loadBlogInfo(sourceDir, name) {
     let [title, content] = markdownTitleContent(path.join(sourceDir, 'blogs', name, 'README.md'));
     return {
         dir: name,
@@ -100,7 +100,7 @@ function loadBlogInfo(sourceDir, name, locale) {
         uri: `/blogs/${name}/index.html`,
         title: title,
         content: content,
-        date: new Date(name.substring(0, 10)).toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })
+        date: name.substring(0, 10) // ISO date format 'yyyy-MM-dd'
     };
 }
 
@@ -219,7 +219,7 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
 }
 
 // generate blog index as array, newest first:
-async function generateBlogIndex(locale) {
+async function generateBlogIndex() {
     const sourceDir = process.env.sourceDir;
     const blogsDir = path.join(sourceDir, 'blogs');
     let subDirs = await getSubDirs(blogsDir);
@@ -232,7 +232,7 @@ async function generateBlogIndex(locale) {
         if (!isValidDate(groups[1])) {
             throw `ERROR: invalid blog folder name: ${name}`;
         }
-        blogs.push(loadBlogInfo(sourceDir, name, locale));
+        blogs.push(loadBlogInfo(sourceDir, name));
     });
     blogs.reverse();
     // attach prev, next:
@@ -638,7 +638,7 @@ async function serveGitSite(port) {
     const processBlog = async function (ctx, templateEngine, name, viewName) {
         const sourceDir = process.env.sourceDir;
         const templateContext = await initTemplateContext();
-        const blogs = await generateBlogIndex(templateContext.site.locale);
+        const blogs = await generateBlogIndex();
         if (blogs.length === 0) {
             throw 'No blog posted.';
         }
