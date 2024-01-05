@@ -4,7 +4,6 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import lunr from 'lunr';
 import LineByLine from 'n-readlines';
 
 export function isExists(...paths) {
@@ -158,20 +157,4 @@ export async function writeTextFile(fpath, content) {
 // load binary file content as buffer:
 export async function loadBinaryFile(...paths) {
     return await fs.readFile(path.resolve(...paths));
-}
-
-// create search index:
-export async function createSearchIndex() {
-    let idx = lunr(function () {
-        this.field('title');
-        this.field('content');
-        this.metadataWhitelist = ['position'];
-        this.add({
-            'id': '/books/abc/xyz/hello-world',
-            'title': 'A simple search example by Lunr',
-            'content': 'If music be the food of love, play on: Give me excess of it…'
-        });
-    });
-    let result = idx.search('food');
-    console.log(JSON.stringify(result));
 }
