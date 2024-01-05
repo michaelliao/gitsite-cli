@@ -11,8 +11,8 @@ import mime from 'mime';
 import nunjucks from 'nunjucks';
 import Koa from 'koa';
 import Router from '@koa/router';
-import lunr from 'lunr';
 
+import { tokenizer, createIndex, exportIndex } from './search.js';
 import createMarkdown from './markdown.js';
 import { markdownToTxt } from 'markdown-to-txt';
 import { copyStaticFiles, isExists, loadBinaryFile, loadYaml, loadTextFile, flattenChapters, getSubDirs, markdownTitleContent, writeTextFile, isValidDate } from './helper.js';
@@ -24,6 +24,7 @@ const DEFAULT_CONFIG = {
         description: 'Powered by GitSite',
         keywords: 'gitsite, git',
         theme: 'default',
+        language: 'en-US',
         navigation: [],
         contact: {
             name: 'GitSite',
@@ -40,7 +41,7 @@ const DEFAULT_CONFIG = {
             indexMarker: true
         },
         search: {
-            languages: []
+            type: 'browser'
         }
     },
     build: {
@@ -324,6 +325,8 @@ async function generateSearchIndex() {
     const docs = [];
     const sourceDir = process.env.sourceDir;
     const books = await getSubDirs(path.join(sourceDir, 'books'));
+    let docId = 0;
+    // books:
     for (let book of books) {
         console.log(`generate search index for book: ${book}`);
         const root = await generateBookIndex(book);
@@ -339,73 +342,70 @@ async function generateSearchIndex() {
             const content = markdownToTxt(mdContent);
             console.log(`build index for ${uri}...`);
             docs.push({
+                id: docId,
                 uri: uri,
                 title: title,
                 content: content
             });
+            docId++;
         }
     }
+    // blogs:
     const config = await loadConfig();
-    let languages = config.site.search.languages;
-    console.log(`use languages for search: ${languages}`);
-    if (languages.indexOf('jp') >= 0) {
-        languages[languages.indexOf('jp')] = 'ja';
-    }
-    if (languages.indexOf('en') < 0) {
-        languages.unshift('en');
-    }
-    if (languages.length > 1) {
-        const stemmer = await import('lunr-languages/lunr.stemmer.support.js');
-        stemmer.default(lunr);
-        const multi = await import('lunr-languages/lunr.multi.js');
-        multi.default(lunr);
-        const tinyseg = await import('lunr-languages/tinyseg.js');
-        tinyseg.default(lunr);
-        for (let lang of languages) {
-            if (lang !== 'en') {
-                const language = await import(`lunr-languages/lunr.${lang}.js`);
-                language.default(lunr);
-            }
-        }
-    }
-    const mapping = {};
-    let index = 0;
-    const searchIndex = lunr(function () {
-        if (languages.length > 1) {
-            this.use(lunr.multiLanguage(...languages));
-        }
-        if (languages.indexOf('zh') >= 0 || languages.indexOf('ja') >= 0) {
-            this.tokenizer = function (x) {
-                let t = lunr.tokenizer(x);
-                if (languages.indexOf('zh') >= 0) {
-                    t = t.concat(lunr.zh.tokenizer(x));
-                }
-                if (languages.indexOf('ja') >= 0) {
-                    t = t.concat(lunr.ja.tokenizer(x));
-                }
-                return t;
-            };
-        }
-        this.ref('id');
-        this.field('title');
-        this.field('content');
-        this.metadataWhitelist = ['position'];
-        for (let doc of docs) {
-            let id = index.toString(36);
-            mapping[id] = doc.uri;
-            index++;
-            doc.id = id;
-            this.add(doc);
+
+    const index = createIndex(docs);
+
+    // dump index:
+    let kvs = [];
+    await index.export((key, data) => {
+        console.log(`export index: ${typeof (key)} / ${key}: ${typeof (data)}`)
+        if (data !== undefined) {
+            kvs.push([key, data]);
         }
     });
-    const dump = JSON.stringify({
-        index: searchIndex,
-        mapping: mapping
-    });
-    const kb = dump.length >> 10;
-    console.log(`search index (${kb} kb):
-` + dump.substring(0, 128) + '...');
-    return 'window.__search__=' + dump;
+    // NOTE: have to wait for async export (await not works for flexsearch export):
+    while (true) {
+        console.log('waiting for export index...');
+        await sleep(100);
+        if (kvs.length === 4) {
+            break;
+        }
+    }
+    let js_code = ['// search in browser:'];
+    js_code.push('(function () {'); // begin function
+    js_code.push(tokenizer.toString());
+    js_code.push('const _searcher_ = new FlexSearch.Index({ encode: tokenizer });');
+    for (let kv of kvs) {
+        js_code.push(`_searcher_.import('${kv[0]}', '${kv[1]}');`);
+    }
+    // dump docs url, title and content:
+    const shorten = (s) => {
+        if (s.length > 300) {
+            return s.substring(0, 300) + '...';
+        }
+        return s;
+    };
+    const uris = docs.map(doc => doc.uri);
+    const titles = docs.map(doc => doc.title);
+    const contents = docs.map(doc => shorten(doc.content));
+    js_code.push(`const uris=${JSON.stringify(uris)}`);
+    js_code.push(`const titles=${JSON.stringify(titles)}`);
+    js_code.push(`const contents=${JSON.stringify(contents)}`);
+    js_code.push(`const searchFn = (q,limit=20) => {
+   let rs = _searcher_.search(q,limit);
+   return rs.map((id)=>{return {uri: uris[id], title: titles[id], content: contents[id]};});
+};`);
+    js_code.push('window.onsearchready && window.onsearchready(searchFn);');
+    js_code.push('})();'); // end function and execute
+    let js = js_code.join('\n');
+    let size = js.length / 1024;
+    let unit = 'kb';
+    if (size > 1024) {
+        size = size / 1024;
+        unit = 'mb';
+    }
+    console.log(`generated search index: ${size.toFixed(1)} ${unit}`);
+    return js;
 }
 
 async function buildGitSite() {
