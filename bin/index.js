@@ -370,7 +370,20 @@ async function generateSearchIndex() {
         });
         docId++;
     }
-    const config = await loadConfig();
+    // pages:
+    const pages = await getSubDirs(path.join(sourceDir, 'pages'));
+    for (let pageName of pages) {
+        console.log(`generate search index for page: ${pageName}`);
+        const pageMdFile = path.join(sourceDir, 'pages', pageName, 'README.md');
+        const [title, content] = markdownTitleContent(pageMdFile);
+        docs.push({
+            id: docId,
+            uri: `/pages/${pageName}/index.html`,
+            title: title,
+            content: markdownToTxt(content)
+        });
+        docId++;
+    }
 
     const index = createIndex(docs);
 
