@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import path from 'node:path';
-import readline from 'node:readline/promises';
 import * as fsSync from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -104,39 +103,51 @@ function loadBlogInfo(sourceDir, name) {
     };
 }
 
-async function newGitSite() {
-    console.log('prepare generate new git site...');
-    const { stdin: input, stdout: output } = await import('node:process');
-    const rl = readline.createInterface({ input, output });
-    let gsDir = await rl.question('directory of GitSite (default to current directory): ');
-    gsDir = gsDir.trim();
-    if (gsDir === '') {
-        gsDir = process.cwd();
-    }
-    const defaultName = path.basename(gsDir);
-    let gsName = await rl.question(`name of GitSite (default to ${defaultName}): `);
-    gsName = gsName.trim();
-    if (gsName.trim() === '') {
-        gsName = defaultName;
-    }
-    console.log(`new git site:
-directory: ${gsDir}
-name: ${gsName}
-`);
-    let gsYN = await rl.question('generate now? y/N: ');
-    gsYN = gsYN.trim();
-    await rl.close();
-
-    if (gsYN.toLowerCase() !== 'y') {
-        console.log('abort.');
+async function initGitSite() {
+    const abort = (msg) => {
+        console.error(msg);
         process.exit(1);
+    };
+    console.log('prepare init new git site...');
+
+    // check current dir:
+    const gsDir = path.normalize(process.cwd());
+    if (fsSync.readdirSync(gsDir, { withFileTypes: true }).length > 0) {
+        return abort(`directory ${gsDir} is not empty. abort.`);
     }
 
-    // test if directory is empty:
+    // download and unzip:
+    let url = 'https://codeload.github.com/michaelliao/gitsite/zip/refs/heads/main';
+    try {
+        let resp = await fetch(url);
+        if (!resp.ok) {
+            throw new Error('response was not ok.');
+        }
+        const zipBlob = await resp.blob();
+        const unzipper = await import('unzipper');
+        zipBlob.stream().pipeTo(unzipper.Extract({
+            path: gsDir
+        }));
+    } catch (err) {
+        return abort(err.message || err);
+    }
 
-    // extract zip to directory:
+    console.log(`
+----------------------------------------------------------------------
 
-    console.log('done.');
+Your git site was initialized successfully!
+Please edit source/site.yml to customize your site.
+
+To start the server and preview your site on http://localhost:3000
+
+  > gitsite-cli serve -v
+
+To build your site:
+
+  > gitsite-cli build -v
+
+To get more information on GitSite please visit https://gitsite.org
+`);
 }
 
 // render template by view name and context, then send html by ctx:
@@ -809,9 +820,9 @@ function main() {
         .description(packageJson.description)
         .version(packageJson.version);
 
-    program.command('new')
-        .description('Generate a new static web site.')
-        .action(newGitSite);
+    program.command('init')
+        .description('Initialize a new git site.')
+        .action(initGitSite);
 
     program.command('serve')
         .description('Run a web server to preview the site in local environment.')
