@@ -12,7 +12,7 @@ import nunjucks from 'nunjucks';
 import Koa from 'koa';
 import Router from '@koa/router';
 
-import { tokenizer, createIndex, exportIndex } from './search.js';
+import { tokenizer, createIndex } from './search.js';
 import createMarkdown from './markdown.js';
 import { markdownToTxt } from 'markdown-to-txt';
 import { copyStaticFiles, isExists, loadBinaryFile, loadYaml, loadTextFile, flattenChapters, getSubDirs, markdownTitleContent, writeTextFile, isValidDate } from './helper.js';
