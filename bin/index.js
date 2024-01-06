@@ -324,33 +324,40 @@ async function generateSearchIndex() {
     console.log(`generate search index...`);
     const docs = [];
     const sourceDir = process.env.sourceDir;
-    const books = await getSubDirs(path.join(sourceDir, 'books'));
     let docId = 0;
     // books:
+    const books = await getSubDirs(path.join(sourceDir, 'books'));
     for (let book of books) {
         console.log(`generate search index for book: ${book}`);
         const root = await generateBookIndex(book);
         if (root.children.length === 0) {
             throw `Empty book ${book}`;
         }
-        const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'books', book);
         const chapterList = flattenChapters(root);
         for (let node of chapterList) {
-            const mdFile = path.join(sourceDir, 'books', node.dir, 'README.md');
-            const [title, mdContent] = markdownTitleContent(mdFile);
             const uri = path.join('/books', node.uri, 'index.html');
-            const content = markdownToTxt(mdContent);
             console.log(`build index for ${uri}...`);
             docs.push({
                 id: docId,
                 uri: uri,
-                title: title,
-                content: content
+                title: node.title,
+                content: markdownToTxt(node.content)
             });
             docId++;
         }
     }
     // blogs:
+    const blogs = await generateBlogIndex();
+    for (let blog of blogs) {
+        console.log(`generate search index for blog: ${blog.title}`);
+        docs.push({
+            id: docId,
+            uri: blog.uri,
+            title: blog.title,
+            content: markdownToTxt(blog.content)
+        });
+        docId++;
+    }
     const config = await loadConfig();
 
     const index = createIndex(docs);
