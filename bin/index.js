@@ -41,7 +41,8 @@ const DEFAULT_CONFIG = {
         },
         search: {
             type: 'browser'
-        }
+        },
+        integration: {}
     },
     build: {
         copy: ['favicon.ico', 'robots.txt', 'ads.txt']
