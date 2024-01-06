@@ -113,27 +113,54 @@ async function initGitSite() {
 
     // check current dir:
     const gsDir = path.normalize(process.cwd());
-    if (fsSync.readdirSync(gsDir, { withFileTypes: true }).length > 0) {
+    const existFiles = fsSync.readdirSync(gsDir, { withFileTypes: true });
+    const ignoreFiles = ['.git', '.ds_store', 'desktop.ini', 'thumbs.db'];
+    if (existFiles.filter(f => {
+        if (ignoreFiles.indexOf(f.name.toLowerCase()) >= 0) {
+            return false;
+        }
+        return true;
+    }).length > 0) {
         return abort(`directory ${gsDir} is not empty. abort.`);
     }
 
     // download and unzip:
     let url = 'https://codeload.github.com/michaelliao/gitsite/zip/refs/heads/main';
+    console.log(`downloading sample gitsite from ${url}...`);
     try {
         let resp = await fetch(url);
         if (!resp.ok) {
             throw new Error('response was not ok.');
         }
-        const zipBlob = await resp.blob();
+        const buffer = await resp.arrayBuffer();
         const unzipper = await import('unzipper');
-        zipBlob.stream().pipeTo(unzipper.Extract({
-            path: gsDir
-        }));
-    } catch (err) {
-        return abort(err.message || err);
-    }
-
-    console.log(`
+        const { Readable } = await import('node:stream');
+        new Readable({
+            read() {
+                this.push(new Uint8Array(buffer));
+                this.push(null);
+            }
+        }).pipe(unzipper.Parse())
+            .on('entry', (entry) => {
+                const originPath = entry.path;
+                const type = entry.type;
+                // remove leading 'gitsite-main/':
+                const targetPath = originPath.substring(originPath.indexOf('/') + 1);
+                if (targetPath) {
+                    if (type === 'Directory') {
+                        fsSync.mkdirSync(path.join(gsDir, targetPath), {
+                            recursive: true
+                        });
+                    } else if (type === 'File') {
+                        const targetFile = path.join(gsDir, targetPath);
+                        console.log(`unzip to: ${targetPath}`);
+                        entry.pipe(fsSync.createWriteStream(targetFile));
+                    }
+                }
+            })
+            .on('finish', () => {
+                console.log(`unzip ok.`);
+                console.log(`
 ----------------------------------------------------------------------
 
 Your git site was initialized successfully!
@@ -141,14 +168,18 @@ Please edit source/site.yml to customize your site.
 
 To start the server and preview your site on http://localhost:3000
 
-  > gitsite-cli serve -v
+    gitsite-cli serve -v
 
 To build your site:
 
-  > gitsite-cli build -v
+    gitsite-cli build -v
 
 To get more information on GitSite please visit https://gitsite.org
 `);
+            });
+    } catch (err) {
+        return abort(err.message || err);
+    }
 }
 
 // render template by view name and context, then send html by ctx:
