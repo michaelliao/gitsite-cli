@@ -97,7 +97,7 @@ function loadBlogInfo(sourceDir, name) {
         dir: name,
         name: name,
         git: `/blogs/${name}/README.md`,
-        uri: `/blogs/${name}/index.html`,
+        uri: name,
         title: title,
         content: content,
         date: name.substring(0, 10) // ISO date format 'yyyy-MM-dd'
@@ -184,7 +184,8 @@ To get more information on GitSite please visit https://gitsite.org
 
 // render template by view name and context, then send html by ctx:
 async function renderTemplate(ctx, templateEngine, viewName, templateContext) {
-    console.debug(`render ${viewName}, context:
+    templateContext.__uri__ = ctx.request.path;
+    console.debug(`render "${viewName}", context:
 ${jsonify(templateContext)}
 `);
     const html = templateEngine.render(viewName, templateContext);
@@ -378,11 +379,9 @@ async function generateSearchIndex() {
         }
         const chapterList = flattenChapters(root);
         for (let node of chapterList) {
-            const uri = path.join('/books', node.uri, 'index.html');
-            console.log(`build index for ${uri}...`);
             docs.push({
                 id: docId,
-                uri: uri,
+                uri: `/books/${node.uri}/index.html`,
                 title: node.title,
                 content: markdownToTxt(node.content)
             });
@@ -395,7 +394,7 @@ async function generateSearchIndex() {
         console.log(`generate search index for blog: ${blog.title}`);
         docs.push({
             id: docId,
-            uri: blog.uri,
+            uri: `/blogs/${blog.uri}/index.html`,
             title: blog.title,
             content: markdownToTxt(blog.content)
         });
@@ -475,10 +474,7 @@ async function buildGitSite() {
     const sourceDir = process.env.sourceDir;
     const outputDir = process.env.outputDir;
     console.log(`build git site: ${sourceDir} to: ${outputDir}`);
-    if (fsSync.existsSync(outputDir)) {
-        console.warn(`clean exist output dir: ${outputDir}`);
-        fsSync.rmSync(outputDir, { recursive: true });
-    }
+    removeDir(outputDir);
     fsSync.mkdirSync(outputDir);
     // create template engine:
     const config = await loadConfig();
@@ -499,10 +495,9 @@ async function buildGitSite() {
             }
             const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'books', book);
             const first = root.children[0];
-            const redirect = `/books/${first.uri}/index.html`;
             await writeTextFile(
                 path.join(outputDir, 'books', `${book}`, 'index.html'),
-                redirectHtml(redirect)
+                redirectHtml(`/books/${first.uri}/index.html`)
             );
             const chapterList = flattenChapters(root);
             for (let node of chapterList) {
@@ -516,7 +511,9 @@ async function buildGitSite() {
                 templateContext.sidebar = true;
                 templateContext.book = root;
                 templateContext.chapter = node;
+                templateContext.__uri__ = `/books/${node.uri}/index.html`;
                 await writeTextFile(htmlFile, templateEngine.render('book.html', templateContext));
+                templateContext.__uri__ = `/books/${node.uri}/content.html`;
                 await writeTextFile(contentHtmlFile, templateEngine.render('book_content.html', templateContext));
                 await copyStaticFiles(nodeDir, path.join(outputDir, 'books', `${node.uri}`));
             }
@@ -536,13 +533,15 @@ async function buildGitSite() {
                 const blogContentFile = path.join(outputDir, 'blogs', blog.dir, 'content.html');
                 blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
                 templateContext.blog = blog;
+                templateContext.__uri__ = `/blogs/${blog.uri}/index.html`;
                 await writeTextFile(blogFile, templateEngine.render('blog.html', templateContext));
+                templateContext.__uri__ = `/blogs/${blog.uri}/content.html`;
                 await writeTextFile(blogContentFile, templateEngine.render('blog_content.html', templateContext));
                 await copyStaticFiles(path.join(sourceDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
             }
             await writeTextFile(
                 path.join(outputDir, 'blogs', 'index.html'),
-                redirectHtml(blogs[0].uri)
+                redirectHtml(`/blogs/${blogs[0].uri}/index.html`)
             );
         }
     }
@@ -565,6 +564,7 @@ async function buildGitSite() {
             page.git = `/pages/${pageName}/README.md`;
             page.htmlContent = markdown.render(page.content);
             templateContext.page = page;
+            templateContext.__uri__ = `/pages/${pageName}/index.html`;
             await writeTextFile(pageHtmlFile, templateEngine.render('page.html', templateContext));
             await copyStaticFiles(path.join(sourceDir, 'pages', pageName), path.join(outputDir, 'pages', pageName));
         }
@@ -572,21 +572,22 @@ async function buildGitSite() {
     // generate index, 404 page:
     {
         const mapping = {
-            'README.md': 'index.html',
-            '404.md': '404.html',
+            // markdownDoc -> [uri, targetFile]:
+            'README.md': ['/', 'index.html'],
+            '404.md': ['/404', '404.html'],
         };
         const templateContext = await initTemplateContext();
+        templateContext.blogs = await generateBlogIndex();
         for (let mdName in mapping) {
-            const htmlName = mapping[mdName];
-            console.log(`generate: ${mdName} => ${htmlName}`);
+            const [uri, htmlName] = mapping[mdName];
+            console.log(`generate ${uri}: ${mdName} => ${htmlName}`);
             const mdFile = path.join(sourceDir, mdName);
             const htmlFile = path.join(outputDir, htmlName);
-            const page = {};
-            [page.title, page.content] = markdownTitleContent(mdFile);
-            page.git = `/${mdName}`;
-            page.htmlContent = markdown.render(page.content);
-            templateContext.page = page;
-            await writeTextFile(htmlFile, templateEngine.render('page.html', templateContext));
+            const [title, content] = markdownTitleContent(mdFile);
+            templateContext.title = title;
+            templateContext.htmlContent = markdown.render(content);
+            templateContext.__uri__ = uri;
+            await writeTextFile(htmlFile, templateEngine.render('index.html', templateContext));
         }
     }
     // copy static resources:
@@ -655,31 +656,35 @@ async function serveGitSite(port) {
         throw 'error';
     });
 
-    // for the next three routers:
-    const processSimplePage = async function (ctx, templateEngine, mdFile, git) {
+    // for next two routes:
+    const processSpecialPage = async (ctx, templateEngine, mdFile) => {
         const templateContext = await initTemplateContext();
-        const page = {};
-        [page.title, page.content] = markdownTitleContent(mdFile);
-        page.git = git;
-        page.htmlContent = markdown.render(page.content);
-        templateContext.page = page;
-        renderTemplate(ctx, templateEngine, 'page.html', templateContext);
+        templateContext.blogs = await generateBlogIndex();
+        [templateContext.title, templateContext.content] = markdownTitleContent(mdFile);
+        templateContext.htmlContent = markdown.render(templateContext.content);
+        renderTemplate(ctx, templateEngine, 'index.html', templateContext);
     };
 
     router.get('/', async ctx => {
         const mdFile = path.join(sourceDir, 'README.md');
-        await processSimplePage(ctx, templateEngine, mdFile, '/README.md');
+        await processSpecialPage(ctx, templateEngine, mdFile);
     });
 
     router.get('/404', async ctx => {
         const mdFile = path.join(sourceDir, '404.md');
-        await processSimplePage(ctx, templateEngine, mdFile, '/404.md');
+        await processSpecialPage(ctx, templateEngine, mdFile);
     });
 
     router.get('/pages/:page/index.html', async ctx => {
         const pageName = ctx.params.page;
         const mdFile = path.join(sourceDir, 'pages', pageName, 'README.md');
-        await processSimplePage(ctx, templateEngine, mdFile, `/pages/${pageName}/README.md`);
+        const templateContext = await initTemplateContext();
+        const page = {};
+        [page.title, page.content] = markdownTitleContent(mdFile);
+        page.git = `/pages/${pageName}/README.md`;
+        page.htmlContent = markdown.render(page.content);
+        templateContext.page = page;
+        renderTemplate(ctx, templateEngine, 'page.html', templateContext);
     });
 
     router.get('/static/search-index.js', async ctx => {
@@ -694,7 +699,7 @@ async function serveGitSite(port) {
             throw 'Blogs is empty';
         }
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = redirectHtml(blogs[0].uri);
+        ctx.body = redirectHtml(`/blogs/${blogs[0].uri}/index.html`);
     });
 
     // for the next two routers:
@@ -722,7 +727,6 @@ async function serveGitSite(port) {
     });
 
     router.get('/blogs/:name/content.html', async ctx => {
-        await sleep();
         await processBlog(ctx, templateEngine, ctx.params.name, 'blog_content.html');
     });
 
@@ -764,7 +768,6 @@ async function serveGitSite(port) {
     });
 
     router.get('/books/:book/:chapters(.*)/content.html', async ctx => {
-        await sleep();
         await processChapter(ctx, templateEngine, 'book_content.html');
     });
 
@@ -840,6 +843,13 @@ function normalizeAndCheckDir(dir) {
     return d;
 }
 
+function removeDir(dir) {
+    if (fsSync.existsSync(dir)) {
+        console.warn(`remove dir: ${dir}`);
+        fsSync.rmSync(dir, { recursive: true });
+    }
+}
+
 function normalizeAndMkDir(dir) {
     const d = path.resolve(dir);
     if (!fsSync.existsSync(d)) {
@@ -901,6 +911,8 @@ function main() {
             process.env.mode = 'build';
             process.env.sourceDir = normalizeAndCheckDir(options.source);
             process.env.themesDir = normalizeAndCheckDir(options.themes);
+            // remove cache to force rebuild:
+            removeDir('.cache');
             process.env.cacheDir = normalizeAndMkDir('.cache');
             process.env.outputDir = path.resolve(options.output);
             process.chdir(process.env.sourceDir);
