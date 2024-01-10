@@ -97,9 +97,14 @@ export function deleteAllByRange(str, start, end) {
     }
 }
 
-// uniqueId('any\ntext') => 'ua1b2c3d';
-export function uniqueId(str) {
+// hexHash('any\ntext') => '0xa1b2c3d';
+export function hexHash(str) {
     const hash = createHash('sha1');
     hash.update(str);
-    return 'u' + hash.digest('hex').substring(0, 7);
+    return hash.digest('hex');
+}
+
+// uniqueId('any\ntext') => 'ua1b2c3d';
+export function uniqueId(str) {
+    return 'u' + hexHash(str).substring(0, 7);
 }

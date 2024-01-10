@@ -16,7 +16,7 @@ Rendered as:
 import katex from 'katex';
 import('katex/contrib/mhchem');
 
-import { checkEnumArg, checkIntArg, deleteAllByRange, parseArgs } from "../plugin_helper.js";
+import { checkEnumArg, parseArgs } from "../plugin_helper.js";
 
 function wrap(html, align) {
     return `<div class="math-wrapper math-wrapper-${align}">${html}</div>`;
