@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
+import os from 'node:os';
 import path from 'node:path';
+import child_process from 'node:child_process';
 import * as fsSync from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -104,6 +106,20 @@ function loadBlogInfo(sourceDir, name) {
     };
 }
 
+function runSync(cmd) {
+    console.log(`> ${cmd}`);
+    try {
+        let output = child_process.execSync(cmd).toString();
+        console.log(output);
+        return true;
+    } catch (err) {
+        console.error('command failed:');
+        console.error(err.stderr.toString());
+        console.error(err.stdout.toString());
+        return false;
+    }
+}
+
 async function initGitSite() {
     const abort = (msg) => {
         console.error(msg);
@@ -122,6 +138,21 @@ async function initGitSite() {
         return true;
     }).length > 0) {
         return abort(`directory ${gsDir} is not empty. abort.`);
+    }
+
+    // check if git installed:
+    if (os.platform() === 'win32') {
+        // FIXME:
+    } else if (os.platform() === 'linux' || os.platform() === 'darwin') {
+        try {
+            child_process.execSync('which git').toString();
+        } catch (err) {
+            console.error('git not found. please install git first.');
+            process.exit(1);
+        }
+    } else {
+        console.error(`unsupported platform: ${os.platform()}`);
+        process.exit(1);
     }
 
     // download and unzip:
@@ -160,6 +191,12 @@ async function initGitSite() {
             })
             .on('finish', () => {
                 console.log(`unzip ok.`);
+                console.log('init git repository:');
+                runSync('rm .gitmodules');
+                runSync('rm -r themes/default');
+                runSync('git init');
+                console.log('add default theme as submodule:');
+                runSync('git submodule add https://github.com/michaelliao/gitsite-theme-default.git themes/default');
                 console.log(`
 ----------------------------------------------------------------------
 
