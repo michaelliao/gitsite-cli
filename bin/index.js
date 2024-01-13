@@ -299,6 +299,30 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
     }
 }
 
+async function generateRecentBlogIndex() {
+    const sourceDir = process.env.sourceDir;
+    const tags = await getSubDirs(path.join(sourceDir, 'blogs'));
+    let recentBlogs = [];
+    for (let tag of tags) {
+        const blogDirs = await getSubDirs(path.join(sourceDir, 'blogs', tag));
+        for (let blogDir of blogDirs) {
+            recentBlogs.push([tag, blogDir]);
+        }
+    }
+    recentBlogs.sort((b1, b2) => {
+        let [t1, name1] = b1;
+        let [t2, name2] = b2;
+        if (name1 === name2) {
+            return t1 < t2 ? -1 : 1;
+        }
+        return name1 > name2 ? -1 : 1;
+    });
+    if (recentBlogs.length > 20) {
+        recentBlogs = recentBlogs.slice(0, 20);
+    }
+    return recentBlogs.map(tagAndName => loadBlogInfo(sourceDir, tagAndName[0], tagAndName[1]));
+}
+
 // generate blog index as array, newest first:
 async function generateBlogIndex(tag) {
     const sourceDir = process.env.sourceDir;
@@ -433,7 +457,7 @@ async function generateSearchIndex() {
             console.log(`generate search index for blog: ${blog.title}`);
             docs.push({
                 id: docId,
-                uri: `/blogs/${tag}/${blog.uri}/index.html`,
+                uri: `/blogs/${blog.uri}/index.html`,
                 title: blog.title,
                 content: markdownToTxt(blog.content)
             });
@@ -568,7 +592,7 @@ async function buildGitSite() {
                 const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs', tag);
                 const templateContext = await initTemplateContext();
                 templateContext.sidebar = true;
-                templateContext.blogs = blogs;
+                templateContext.recentBlogs = blogs;
                 for (let blog of blogs) {
                     console.log(`generate blog: ${blog.dir}`);
                     const blogFile = path.join(outputDir, 'blogs', tag, blog.dir, 'index.html');
@@ -620,7 +644,7 @@ async function buildGitSite() {
             '404.md': ['/404', '404.html'],
         };
         const templateContext = await initTemplateContext();
-        templateContext.blogs = await generateBlogIndex();
+        templateContext.recentBlogs = await generateRecentBlogIndex();
         for (let mdName in mapping) {
             const [uri, htmlName] = mapping[mdName];
             console.log(`generate ${uri}: ${mdName} => ${htmlName}`);
@@ -702,7 +726,7 @@ async function serveGitSite(port) {
     // for next two routes:
     const processSpecialPage = async (ctx, templateEngine, mdFile) => {
         const templateContext = await initTemplateContext();
-        // templateContext.blogs = await generateBlogIndex();
+        templateContext.recentBlogs = await generateRecentBlogIndex();
         [templateContext.title, templateContext.content] = markdownTitleContent(mdFile);
         templateContext.htmlContent = markdown.render(templateContext.content);
         renderTemplate(ctx, templateEngine, 'index.html', templateContext);
