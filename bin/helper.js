@@ -35,6 +35,9 @@ export function markdownTitleContent(mdFilePath) {
 }
 
 export async function getSubDirs(dir, filterFn) {
+    if (!isExists(dir)) {
+        return [];
+    }
     let names = (await fs.readdir(dir, { withFileTypes: true })).filter(d => d.isDirectory()).map(d => d.name);
     if (filterFn) {
         names = names.filter(filterFn);
