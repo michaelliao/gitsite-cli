@@ -93,13 +93,13 @@ function chapterURI(dir) {
     return [parseInt(groups[1]), groups[2]];
 }
 
-function loadBlogInfo(sourceDir, name) {
-    let [title, content] = markdownTitleContent(path.join(sourceDir, 'blogs', name, 'README.md'));
+function loadBlogInfo(sourceDir, tag, name) {
+    let [title, content] = markdownTitleContent(path.join(sourceDir, 'blogs', tag, name, 'README.md'));
     return {
         dir: name,
         name: name,
-        git: `/blogs/${name}/README.md`,
-        uri: name,
+        git: `/blogs/${tag}/${name}/README.md`,
+        uri: `${tag}/${name}`,
         title: title,
         content: content,
         date: name.substring(0, 10) // ISO date format 'yyyy-MM-dd'
@@ -300,9 +300,9 @@ async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
 }
 
 // generate blog index as array, newest first:
-async function generateBlogIndex() {
+async function generateBlogIndex(tag) {
     const sourceDir = process.env.sourceDir;
-    const blogsDir = path.join(sourceDir, 'blogs');
+    const blogsDir = path.join(sourceDir, 'blogs', tag);
     let subDirs = await getSubDirs(blogsDir);
     let blogs = [];
     subDirs.sort().forEach(name => {
@@ -313,7 +313,7 @@ async function generateBlogIndex() {
         if (!isValidDate(groups[1])) {
             throw `ERROR: invalid blog folder name: ${name}`;
         }
-        blogs.push(loadBlogInfo(sourceDir, name));
+        blogs.push(loadBlogInfo(sourceDir, tag, name));
     });
     blogs.reverse();
     // attach prev, next:
@@ -426,16 +426,19 @@ async function generateSearchIndex() {
         }
     }
     // blogs:
-    const blogs = await generateBlogIndex();
-    for (let blog of blogs) {
-        console.log(`generate search index for blog: ${blog.title}`);
-        docs.push({
-            id: docId,
-            uri: `/blogs/${blog.uri}/index.html`,
-            title: blog.title,
-            content: markdownToTxt(blog.content)
-        });
-        docId++;
+    const tags = await getSubDirs(path.join(sourceDir, 'blogs'));
+    for (let tag of tags) {
+        const blogs = await generateBlogIndex(tag);
+        for (let blog of blogs) {
+            console.log(`generate search index for blog: ${blog.title}`);
+            docs.push({
+                id: docId,
+                uri: `/blogs/${tag}/${blog.uri}/index.html`,
+                title: blog.title,
+                content: markdownToTxt(blog.content)
+            });
+            docId++;
+        }
     }
     // pages:
     const pages = await getSubDirs(path.join(sourceDir, 'pages'));
@@ -558,28 +561,31 @@ async function buildGitSite() {
     }
     // generate blogs:
     {
-        const blogs = await generateBlogIndex();
-        if (blogs.length > 0) {
-            const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs');
-            const templateContext = await initTemplateContext();
-            templateContext.sidebar = true;
-            templateContext.blogs = blogs;
-            for (let blog of blogs) {
-                console.log(`generate blog: ${blog.dir}`);
-                const blogFile = path.join(outputDir, 'blogs', blog.dir, 'index.html');
-                const blogContentFile = path.join(outputDir, 'blogs', blog.dir, 'content.html');
-                blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
-                templateContext.blog = blog;
-                templateContext.__uri__ = `/blogs/${blog.uri}/index.html`;
-                await writeTextFile(blogFile, templateEngine.render('blog.html', templateContext));
-                templateContext.__uri__ = `/blogs/${blog.uri}/content.html`;
-                await writeTextFile(blogContentFile, templateEngine.render('blog_content.html', templateContext));
-                await copyStaticFiles(path.join(sourceDir, 'blogs', blog.dir), path.join(outputDir, 'blogs', blog.dir));
+        const tags = await getSubDirs(path.join(sourceDir, 'blogs'));
+        for (let tag of tags) {
+            const blogs = await generateBlogIndex(tag);
+            if (blogs.length > 0) {
+                const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs', tag);
+                const templateContext = await initTemplateContext();
+                templateContext.sidebar = true;
+                templateContext.blogs = blogs;
+                for (let blog of blogs) {
+                    console.log(`generate blog: ${blog.dir}`);
+                    const blogFile = path.join(outputDir, 'blogs', tag, blog.dir, 'index.html');
+                    const blogContentFile = path.join(outputDir, 'blogs', tag, blog.dir, 'content.html');
+                    blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
+                    templateContext.blog = blog;
+                    templateContext.__uri__ = `/blogs/${blog.uri}/index.html`;
+                    await writeTextFile(blogFile, templateEngine.render('blog.html', templateContext));
+                    templateContext.__uri__ = `/blogs/${blog.uri}/content.html`;
+                    await writeTextFile(blogContentFile, templateEngine.render('blog_content.html', templateContext));
+                    await copyStaticFiles(path.join(sourceDir, 'blogs', tag, blog.dir), path.join(outputDir, 'blogs', tag, blog.dir));
+                }
+                await writeTextFile(
+                    path.join(outputDir, 'blogs', 'tag', 'index.html'),
+                    redirectHtml(`/blogs/${blogs[0].uri}/index.html`)
+                );
             }
-            await writeTextFile(
-                path.join(outputDir, 'blogs', 'index.html'),
-                redirectHtml(`/blogs/${blogs[0].uri}/index.html`)
-            );
         }
     }
     // generate search index:
@@ -696,7 +702,7 @@ async function serveGitSite(port) {
     // for next two routes:
     const processSpecialPage = async (ctx, templateEngine, mdFile) => {
         const templateContext = await initTemplateContext();
-        templateContext.blogs = await generateBlogIndex();
+        // templateContext.blogs = await generateBlogIndex();
         [templateContext.title, templateContext.content] = markdownTitleContent(mdFile);
         templateContext.htmlContent = markdown.render(templateContext.content);
         renderTemplate(ctx, templateEngine, 'index.html', templateContext);
@@ -729,9 +735,9 @@ async function serveGitSite(port) {
         ctx.body = searchIndex;
     });
 
-    router.get('/blogs/index.html', async ctx => {
+    router.get('/blogs/:tag/index.html', async ctx => {
         console.debug('process blog index.');
-        const blogs = await generateBlogIndex();
+        const blogs = await generateBlogIndex(ctx.params.tag);
         if (blogs.length === 0) {
             throw 'Blogs is empty';
         }
@@ -740,10 +746,10 @@ async function serveGitSite(port) {
     });
 
     // for the next two routers:
-    const processBlog = async function (ctx, templateEngine, name, viewName) {
+    const processBlog = async function (ctx, templateEngine, tag, name, viewName) {
         const sourceDir = process.env.sourceDir;
         const templateContext = await initTemplateContext();
-        const blogs = await generateBlogIndex();
+        const blogs = await generateBlogIndex(tag);
         if (blogs.length === 0) {
             throw 'No blog posted.';
         }
@@ -751,7 +757,7 @@ async function serveGitSite(port) {
         if (!blog) {
             return sendError(404, ctx, `Blog not found: ${name}`);
         }
-        let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs');
+        let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs', tag);
         blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
         templateContext.sidebar = true;
         templateContext.blogs = blogs;
@@ -759,12 +765,12 @@ async function serveGitSite(port) {
         renderTemplate(ctx, templateEngine, viewName, templateContext);
     };
 
-    router.get('/blogs/:name/index.html', async ctx => {
-        await processBlog(ctx, templateEngine, ctx.params.name, 'blog.html');
+    router.get('/blogs/:tag/:name/index.html', async ctx => {
+        await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog.html');
     });
 
-    router.get('/blogs/:name/content.html', async ctx => {
-        await processBlog(ctx, templateEngine, ctx.params.name, 'blog_content.html');
+    router.get('/blogs/:tag/:name/content.html', async ctx => {
+        await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog_content.html');
     });
 
     router.get('/books/:book/index.html', async ctx => {
