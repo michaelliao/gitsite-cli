@@ -606,7 +606,7 @@ async function buildGitSite() {
                     await copyStaticFiles(path.join(sourceDir, 'blogs', tag, blog.dir), path.join(outputDir, 'blogs', tag, blog.dir));
                 }
                 await writeTextFile(
-                    path.join(outputDir, 'blogs', 'tag', 'index.html'),
+                    path.join(outputDir, 'blogs', tag, 'index.html'),
                     redirectHtml(`/blogs/${blogs[0].uri}/index.html`)
                 );
             }
