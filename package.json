@@ -1,6 +1,6 @@
 {
   "name": "gitsite-cli",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Tools for generate static web site from git repository.",
   "author": "Michael Liao",
   "license": "GPL-3.0",
