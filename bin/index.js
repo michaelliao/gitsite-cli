@@ -592,7 +592,7 @@ async function buildGitSite() {
                 const [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs', tag);
                 const templateContext = await initTemplateContext();
                 templateContext.sidebar = true;
-                templateContext.recentBlogs = blogs;
+                templateContext.blogs = blogs;
                 for (let blog of blogs) {
                     console.log(`generate blog: ${blog.dir}`);
                     const blogFile = path.join(outputDir, 'blogs', tag, blog.dir, 'index.html');
