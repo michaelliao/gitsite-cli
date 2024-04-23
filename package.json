@@ -1,7 +1,7 @@
 {
   "name": "gitsite-cli",
-  "version": "1.0.24",
-  "description": "Tools for generate static web site from git repository.",
+  "version": "1.0.26",
+  "description": "Tools for generate static web site from Markdown files in git repository.",
   "author": "Michael Liao",
   "license": "GPL-3.0",
   "homepage": "https://github.com/michaelliao/gitsite-cli",

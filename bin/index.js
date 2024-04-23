@@ -26,6 +26,7 @@ const DEFAULT_CONFIG = {
         keywords: 'gitsite, git',
         theme: 'default',
         language: 'en-US',
+        rootPath: '',
         navigation: [],
         contact: {
             name: 'GitSite',
@@ -561,7 +562,7 @@ async function buildGitSite() {
             const first = root.children[0];
             await writeTextFile(
                 path.join(outputDir, 'books', `${book}`, 'index.html'),
-                redirectHtml(`/books/${first.uri}/index.html`)
+                redirectHtml(`${config.site.rootPath}/books/${first.uri}/index.html`)
             );
             const chapterList = flattenChapters(root);
             for (let node of chapterList) {
@@ -607,7 +608,7 @@ async function buildGitSite() {
                 }
                 await writeTextFile(
                     path.join(outputDir, 'blogs', tag, 'index.html'),
-                    redirectHtml(`/blogs/${blogs[0].uri}/index.html`)
+                    redirectHtml(`${config.site.rootPath}/blogs/${blogs[0].uri}/index.html`)
                 );
             }
         }
@@ -685,8 +686,10 @@ async function buildGitSite() {
     }
     // run post-build.js:
     await runBuildScript(themeDir, 'post-build.mjs', config, outputDir);
-    console.log(`Run nginx and visit http://localhost:8000\ndocker run --rm -p 8000:80 -v ${outputDir}:/usr/share/nginx/html nginx:latest`);
-    console.log('done.');
+    console.log('Build ok.');
+    console.log(`Run nginx:`);
+    console.log(`docker run --rm -p 8000:80 -v ${outputDir}:/usr/share/nginx/html${config.site.rootPath} nginx:latest`);
+    console.log(`Visit http://localhost:8000${config.site.rootPath}/`);
     process.exit(0);
 }
 
@@ -699,6 +702,7 @@ async function serveGitSite(port) {
     }
     // create template engine:
     const config = await loadConfig();
+    const rootPath = config.site.rootPath;
     const themeDir = path.join(process.env.themesDir, config.site.theme);
     const templateEngine = createTemplateEngine(themeDir);
     const markdown = await createMarkdown();
@@ -719,7 +723,7 @@ async function serveGitSite(port) {
     });
     app.use(router.routes()).use(router.allowedMethods());
 
-    router.get('/error', async ctx => {
+    router.get(`${rootPath}/error`, async ctx => {
         throw 'error';
     });
 
@@ -732,17 +736,17 @@ async function serveGitSite(port) {
         renderTemplate(ctx, templateEngine, 'index.html', templateContext);
     };
 
-    router.get('/', async ctx => {
+    router.get(`${rootPath}/`, async ctx => {
         const mdFile = path.join(sourceDir, 'README.md');
         await processSpecialPage(ctx, templateEngine, mdFile);
     });
 
-    router.get('/404', async ctx => {
+    router.get(`${rootPath}/404`, async ctx => {
         const mdFile = path.join(sourceDir, '404.md');
         await processSpecialPage(ctx, templateEngine, mdFile);
     });
 
-    router.get('/pages/:page/index.html', async ctx => {
+    router.get(`${rootPath}/pages/:page/index.html`, async ctx => {
         const pageName = ctx.params.page;
         const mdFile = path.join(sourceDir, 'pages', pageName, 'README.md');
         const templateContext = await initTemplateContext();
@@ -754,19 +758,19 @@ async function serveGitSite(port) {
         renderTemplate(ctx, templateEngine, 'page.html', templateContext);
     });
 
-    router.get('/static/search-index.js', async ctx => {
+    router.get(`${rootPath}/static/search-index.js`, async ctx => {
         ctx.type = 'text/javascript; charset=utf-8';
         ctx.body = searchIndex;
     });
 
-    router.get('/blogs/:tag/index.html', async ctx => {
+    router.get(`${rootPath}/blogs/:tag/index.html`, async ctx => {
         console.debug('process blog index.');
         const blogs = await generateBlogIndex(ctx.params.tag);
         if (blogs.length === 0) {
             throw 'Blogs is empty';
         }
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = redirectHtml(`/blogs/${blogs[0].uri}/index.html`);
+        ctx.body = redirectHtml(`${rootPath}/blogs/${blogs[0].uri}/index.html`);
     });
 
     // for the next two routers:
@@ -789,22 +793,22 @@ async function serveGitSite(port) {
         renderTemplate(ctx, templateEngine, viewName, templateContext);
     };
 
-    router.get('/blogs/:tag/:name/index.html', async ctx => {
+    router.get(`${rootPath}/blogs/:tag/:name/index.html`, async ctx => {
         await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog.html');
     });
 
-    router.get('/blogs/:tag/:name/content.html', async ctx => {
+    router.get(`${rootPath}/blogs/:tag/:name/content.html`, async ctx => {
         await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog_content.html');
     });
 
-    router.get('/books/:book/index.html', async ctx => {
+    router.get(`${rootPath}/books/:book/index.html`, async ctx => {
         let book = ctx.params.book;
         let root = await generateBookIndex(book);
         if (root.children.length === 0) {
             throw `Book "${book} is empty.`;
         }
         let child = root.children[0];
-        let redirect = `/books/${child.uri}/index.html`;
+        let redirect = `${rootPath}/books/${child.uri}/index.html`;
         ctx.type = 'text/html; charset=utf-8';
         ctx.body = redirectHtml(redirect);
     });
@@ -830,15 +834,15 @@ async function serveGitSite(port) {
         renderTemplate(ctx, templateEngine, viewName, templateContext);
     };
 
-    router.get('/books/:book/:chapters(.*)/index.html', async ctx => {
+    router.get(`${rootPath}/books/:book/:chapters(.*)/index.html`, async ctx => {
         await processChapter(ctx, templateEngine, 'book.html');
     });
 
-    router.get('/books/:book/:chapters(.*)/content.html', async ctx => {
+    router.get(`${rootPath}/books/:book/:chapters(.*)/content.html`, async ctx => {
         await processChapter(ctx, templateEngine, 'book_content.html');
     });
 
-    router.get('/books/:book/:chapters(.*)/:file', async ctx => {
+    router.get(`${rootPath}/books/:book/:chapters(.*)/:file`, async ctx => {
         let book = ctx.params.book,
             chapters = ctx.params.chapters.split('/');
         let root = await generateBookIndex(book);
@@ -859,8 +863,8 @@ async function serveGitSite(port) {
         }
     });
 
-    router.get('/(.*)', async ctx => {
-        let file, p = ctx.request.path.substring(1);
+    router.get(`${rootPath}/(.*)`, async ctx => {
+        let file, p = ctx.request.path.substring(rootPath.length + 1);
         if (p.startsWith('blogs/')
             || p.startsWith('pages/')) {
             file = path.join(sourceDir, p);
@@ -899,6 +903,9 @@ async function serveGitSite(port) {
     app.listen(port);
     console.log(`set gitsite directory: ${sourceDir}`);
     console.log(`server is running at port ${port}...`);
+    let url = 'http://localhost';
+    let start = (process.platform == 'darwin' ? 'open' : process.platform == 'win32' ? 'start' : 'xdg-open');
+    child_process.exec(start + ` http://localhost:${port}${rootPath}/`);
 }
 
 function normalizeAndCheckDir(dir) {
