@@ -664,10 +664,10 @@ async function buildGitSite() {
         if (isExists(srcStatic)) {
             const destStatic = path.join(outputDir, 'static');
             console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
-            if (!isExists(destStatic)) {
-                fsSync.mkdirSync(destStatic);
-            }
-            await copyStaticFiles(srcStatic, destStatic);
+            const cwd = process.cwd();
+            process.chdir(sourceDir);
+            child_process.execSync(`cp -r static ${outputDir}`);
+            process.chdir(cwd);
         }
     }
     // copy special files like favicon.ico:
