@@ -590,6 +590,7 @@ async function buildGitSite() {
                     path.join(outputDir, 'blogs', tag, 'index.json'),
                     JSON.stringify(blogs.map(blog => {
                         return {
+                            date: blog.date,
                             uri: `/blogs/${blog.uri}/index.html`,
                             title: blog.title
                         }
@@ -788,6 +789,7 @@ async function serveGitSite(port) {
         const blogs = await generateBlogIndex(ctx.params.tag);
         const blogItems = blogs.map(blog => {
             return {
+                date: blog.date,
                 uri: `/blogs/${blog.uri}/index.html`,
                 title: blog.title
             }
