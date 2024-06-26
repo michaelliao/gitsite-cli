@@ -32,7 +32,7 @@ async function createMarkdown(opt) {
         // default options:
         opt = {
             html: true, // enable HTML tags in source
-            linkify: true, // autoconvert URL-like text to links
+            linkify: false, // autoconvert URL-like text to links
             external_link: true, // add target="_blank" for external link
             lazy_image: true, // add loading="lazy" for image
             math: true, // enable mathematical expressions
