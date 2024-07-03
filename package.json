@@ -7,7 +7,7 @@
   "homepage": "https://github.com/michaelliao/gitsite-cli",
   "repository": {
     "type": "git",
-    "url": "https://github.com/michaelliao/gitsite-cli.git"
+    "url": "git+https://github.com/michaelliao/gitsite-cli.git"
   },
   "keywords": [
     "Git",
@@ -22,7 +22,7 @@
   "main": "bin/index.js",
   "type": "module",
   "bin": {
-    "gitsite-cli": "./bin/index.js"
+    "gitsite-cli": "bin/index.js"
   },
   "scripts": {
     "test": "find test -type f -name 'test_*.js' -exec node '{}' \\;"
