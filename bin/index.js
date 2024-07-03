@@ -192,9 +192,10 @@ async function initGitSite() {
             })
             .on('finish', () => {
                 console.log(`unzip ok.`);
+                console.log('remove .gitmodules and themes/default...');
+                fsSync.rmSync('.gitmodules');
+                fsSync.rmdirSync('themes/default');
                 console.log('init git repository:');
-                runSync('rm .gitmodules');
-                runSync('rm -r themes/default');
                 runSync('git init');
                 console.log('add default theme as submodule:');
                 runSync('git submodule add https://github.com/michaelliao/gitsite-theme-default.git themes/default');
