@@ -23,7 +23,7 @@ const VIDEOS = {
     },
     bilibili: {
         urlPatterns: [/https\:\/\/www\.bilibili\.com\/video\/(BV\w+).*/],
-        embed: 'https://player.bilibili.com/player.html?bvid=${key}&autoplay=0'
+        embed: 'https://player.bilibili.com/player.html?bvid=${key}'
     }
 }
 
@@ -69,23 +69,38 @@ export default function (md, args, str) {
     const kv = parseArgs(args);
     const align = checkEnumArg(kv['align'], ['left', 'center', 'right']);
     const autoplay = !!kv['autoplay'];
+    const controls = !!kv['controls'];
     const maxWidth = checkIntArg(kv['max-width'], 0, x => x >= 10 && x <= 10000);
     const ratio = parseRatio(kv['ratio'] || '4:3');
-
-    const [type, key] = parseTypeAndKey(str.trim());
-    if (type === null) {
-        return '<p>ERROR parse video url: ' + escapeHtml(str) + '</p>';
-    }
     const [w, h] = ratio;
     const padding = 100 * h / w;
-    const src = VIDEOS[type].embed.replace('${key}', key);
-    let html = `<div class="gsc-video-container gsc-video-container-${type}" style="padding-bottom: ${padding.toFixed(4)}%">
-    <iframe class="gsc-video gsc-video-${type}" src="${src}" allowfullscreen></iframe>
-</div>`;
     let style = alignStyles[align];
     if (maxWidth > 0) {
         style = style + `max-width:${maxWidth}px;`;
     }
-    html = `<div class="gsc-video-wrapper" style="${style}">` + html + '</div>';
-    return html;
+    str = str.trim();
+    if (str.endsWith('.mp4') || str.endsWith('.webm')) {
+        /*
+         * <video controls>
+         *     <source src="xxx.mp4" />
+         * </video>
+         */
+        let type = 'file';
+        let html = `<div class="gsc-video-container gsc-video-container-${type}" style="padding-bottom: ${padding.toFixed(4)}%">
+    <video ${controls ? 'controls ' : ''}${autoplay ? 'autoplay ' : ''}class="gsc-video gsc-video-${type}"><source src="${str}" /></video>
+</div>`;
+        html = `<div class="gsc-video-wrapper" style="${style}">` + html + '</div>\n';
+        return html;
+    } else {
+        const [type, key] = parseTypeAndKey(str);
+        if (type === null) {
+            return '<p>ERROR parse video url: ' + escapeHtml(str) + '</p>';
+        }
+        const src = VIDEOS[type].embed.replace('${key}', key);
+        let html = `<div class="gsc-video-container gsc-video-container-${type}" style="padding-bottom: ${padding.toFixed(4)}%">
+    <iframe class="gsc-video gsc-video-${type}" src="${src}&${autoplay ? 'autoplay=1' : 'autoplay=0'}" ${autoplay ? 'allow="autoplay" ' : ''}allowfullscreen></iframe>
+</div>`;
+        html = `<div class="gsc-video-wrapper" style="${style}">` + html + '</div>\n';
+        return html;
+    }
 };
