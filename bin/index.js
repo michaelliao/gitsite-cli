@@ -290,8 +290,11 @@ async function loadBeforeAndAfter(sourceDir, ...dirs) {
 }
 
 async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
-    const buildJs = path.join(themeDir, jsFile);
+    let buildJs = path.join(themeDir, jsFile);
     if (fsSync.existsSync(buildJs)) {
+        if (process.platform === 'win32') {
+            buildJs = `file://${buildJs}`;
+        }
         console.log(`run ${buildJs}...`);
         const build = await import(buildJs);
         const cwd = process.cwd();
