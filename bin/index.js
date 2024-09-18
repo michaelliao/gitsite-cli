@@ -89,9 +89,9 @@ function chapterURI(dir) {
     let groups = /^(\d{1,8})[\-\.\_](.+)$/.exec(base);
     if (groups === null) {
         console.warn(`WARNING: folder will be sort at last for there is no order that can extract from name: ${dir}`);
-        return [100_000_000, base];
+        return [100_000_000, encodeURIComponent(base)];
     }
-    return [parseInt(groups[1]), groups[2]];
+    return [parseInt(groups[1]), encodeURIComponent(groups[2])];
 }
 
 function loadBlogInfo(sourceDir, tag, name) {
@@ -100,7 +100,7 @@ function loadBlogInfo(sourceDir, tag, name) {
         dir: name,
         name: name,
         git: `/blogs/${tag}/${name}/README.md`,
-        uri: `${tag}/${name}`,
+        uri: `${tag}/${encodeURIComponent(name)}`,
         title: title,
         content: content,
         date: name.substring(0, 10) // ISO date format 'yyyy-MM-dd'
@@ -866,6 +866,8 @@ async function serveGitSite(port) {
 
     router.get(`${rootPath}/(.*)`, async ctx => {
         let file, p = ctx.request.path.substring(rootPath.length + 1);
+        p = decodeURIComponent(p);
+        console.log(`try file: ${p}`);
         if (p.startsWith('blogs/')
             || p.startsWith('pages/')) {
             file = path.join(sourceDir, p);
