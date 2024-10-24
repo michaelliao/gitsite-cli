@@ -255,7 +255,10 @@ ${err.toString()}</code></pre>
 // generate redirect html:
 function redirectHtml(redirect) {
     return `<html>
-<head><meta http-equiv="refresh" content="0;URL='${redirect}'" /></head>
+<head>
+    <meta http-equiv="cache-control" content="max-age=86400" />
+    <meta http-equiv="refresh" content="0;URL='${redirect}'" />
+</head>
 <body></body>
 </html>`
 }
