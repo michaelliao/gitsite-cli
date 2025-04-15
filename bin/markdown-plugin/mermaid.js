@@ -102,7 +102,7 @@ export default function (md, args, str) {
     }
     writeFileSync(puppeteerCfgFile, JSON.stringify(puppeteerCfgJson), { encoding: 'utf8' });
     writeFileSync(inputFile, str, { encoding: 'utf8' });
-    const cmd = `npx -p @mermaid-js/mermaid-cli mmdc -b transparent -p "${puppeteerCfgFile}" -i "${inputFile}" -o "${outputOriginFile}"`;
+    const cmd = `npx -p @mermaid-js/mermaid-cli@10.6.1 mmdc -b transparent -p "${puppeteerCfgFile}" -i "${inputFile}" -o "${outputOriginFile}"`;
     console.log(`exec: ${cmd}`);
     execSync(cmd);
     let svg = readFileSync(outputOriginFile, { encoding: 'utf8' });

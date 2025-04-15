@@ -1,6 +1,6 @@
 {
   "name": "gitsite-cli",
-  "version": "1.0.34",
+  "version": "1.0.36",
   "description": "Tools for generate static web site from Markdown files in git repository.",
   "author": "Michael Liao",
   "license": "GPL-3.0",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@koa/router": "^12.0.1",
     "@mdit/plugin-katex": "^0.6.5",
-    "@mermaid-js/mermaid-cli": "^10.6.1",
+    "@mermaid-js/mermaid-cli": "=10.6.1",
     "chokidar": "^3.5.3",
     "commander": "^11.1.0",
     "flexsearch": "^0.7.31",
