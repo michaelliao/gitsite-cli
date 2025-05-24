@@ -161,3 +161,11 @@ export async function writeTextFile(fpath, content) {
 export async function loadBinaryFile(...paths) {
     return await fs.readFile(path.resolve(...paths));
 }
+
+export function encodeHtml(str) {
+    return str.replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
