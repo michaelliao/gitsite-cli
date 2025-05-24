@@ -82,7 +82,7 @@ export default function (md, args, str) {
 
     const span_correct = `<span class="question correct" style="display:none"><span>${escapeHtml(correct)}</span></span>`;
     const span_wrong = `<span class="question wrong" style="display:none"><span>${escapeHtml(wrong)}</span></span>`;
-    const button_submit = `<button type="submit" class="question"><span>${escapeHtml(submit)}</span></button>`;
+    const button_submit = `<button type="submit" class="question pdf-hidden"><span>${escapeHtml(submit)}</span></button>`;
 
     let arr = str.split(/\-{3,}/g);
     if (arr.length !== 2) {
