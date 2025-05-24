@@ -79,6 +79,12 @@ export default function (md, args, str) {
         style = style + `max-width:${maxWidth}px;`;
     }
     str = str.trim();
+    const pdfOnly = `<p class="pdf-only"><a href="${str}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" style="width:4em;height:4em;" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+        <path d="M6.271 5.055a.5.5 0 0 1 .52.038l3.5 2.5a.5.5 0 0 1 0 .814l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .271-.445"/>
+    </svg>
+</a></p>`;
     if (str.endsWith('.mp4') || str.endsWith('.webm')) {
         /*
          * <video controls>
@@ -89,8 +95,8 @@ export default function (md, args, str) {
         let html = `<div class="gsc-video-container gsc-video-container-${type}" style="padding-bottom: ${padding.toFixed(4)}%">
     <video ${controls ? 'controls ' : ''}${autoplay ? 'autoplay ' : ''}class="gsc-video gsc-video-${type}"><source src="${str}" /></video>
 </div>`;
-        html = `<div class="gsc-video-wrapper" style="${style}">` + html + '</div>\n';
-        return html;
+        html = `<div class="gsc-video-wrapper pdf-hidden" style="${style}">` + html + '</div>\n';
+        return html + pdfOnly;
     } else {
         const [type, key] = parseTypeAndKey(str);
         if (type === null) {
@@ -100,7 +106,7 @@ export default function (md, args, str) {
         let html = `<div class="gsc-video-container gsc-video-container-${type}" style="padding-bottom: ${padding.toFixed(4)}%">
     <iframe class="gsc-video gsc-video-${type}" src="${src}&${autoplay ? 'autoplay=1' : 'autoplay=0'}" ${autoplay ? 'allow="autoplay" ' : ''}allowfullscreen></iframe>
 </div>`;
-        html = `<div class="gsc-video-wrapper" style="${style}">` + html + '</div>\n';
-        return html;
+        html = `<div class="gsc-video-wrapper pdf-hidden" style="${style}">` + html + '</div>\n';
+        return html + pdfOnly;
     }
 };
