@@ -12,15 +12,18 @@ import mime from 'mime';
 import nunjucks from 'nunjucks';
 import Koa from 'koa';
 import Router from '@koa/router';
+import puppeteer from 'puppeteer';
 
 import { tokenizer, createIndex } from './search.js';
 import createMarkdown from './markdown.js';
 import { markdownToTxt } from 'markdown-to-txt';
-import { copyStaticFiles, isExists, loadBinaryFile, loadYaml, loadTextFile, flattenChapters, getSubDirs, markdownTitleContent, writeTextFile, isValidDate } from './helper.js';
+import { copyStaticFiles, isExists, loadBinaryFile, loadYaml, loadTextFile, flattenChapters, getSubDirs, markdownTitleContent, writeTextFile, encodeHtml, isValidDate } from './helper.js';
+import { PDFDocument } from 'pdf-lib';
 
 // default config:
 const DEFAULT_CONFIG = {
     site: {
+        domain: 'http://localhost',
         title: 'GitSite',
         description: 'Powered by GitSite',
         keywords: 'gitsite, git',
@@ -295,7 +298,7 @@ async function loadBeforeAndAfter(sourceDir, ...dirs) {
 async function runBuildScript(themeDir, jsFile, templateContext, outputDir) {
     let buildJs = path.join(themeDir, jsFile);
     if (fsSync.existsSync(buildJs)) {
-        if (process.platform === 'win32') {
+        if (os.platform() === 'win32') {
             buildJs = `file://${buildJs}`;
         }
         console.log(`run ${buildJs}...`);
@@ -387,7 +390,7 @@ async function generateBookIndex(bookDirName) {
         return item;
     }
     let root = await listDir(null, bookDirName, 0);
-    // append 'title', 'authro', 'description':
+    // append 'title', 'author', 'description':
     root.title = bookInfo.title || bookDirName;
     root.author = bookInfo.author || '';
     root.description = bookInfo.description || '';
@@ -516,6 +519,13 @@ async function generateSearchIndex() {
     }
     console.log(`generated search index: ${size.toFixed(1)} ${unit}`);
     return js;
+}
+
+function generatePdfPage(chapterBaseUri, id, title, htmlContent) {
+    return `<div id="${id}" class="pdf-page" data-base-uri="${chapterBaseUri}"><a name="${id}"></a>
+    <h1 class="pdf-page-title">${encodeHtml(title)}</h1>
+    ${htmlContent}
+</div>`;
 }
 
 async function buildGitSite() {
@@ -654,11 +664,15 @@ async function buildGitSite() {
     {
         const srcStatic = path.join(sourceDir, 'static');
         if (isExists(srcStatic)) {
-            const destStatic = path.join(outputDir, 'static');
-            console.log(`copy static resources from ${srcStatic} to ${destStatic}`);
+            console.log(`copy static resources from ${srcStatic} to ${outputDir}/static`);
             const cwd = process.cwd();
             process.chdir(sourceDir);
-            child_process.execSync(`cp -r static ${outputDir}`);
+            let cp = `cp -r ${srcStatic} ${outputDir}/`;
+            if (os.platform() === 'win32') {
+                cp = `xcopy "static" "${outputDir}\\static" /E /I /Y`;
+            }
+            console.log(`run ${cp}`);
+            child_process.execSync(cp);
             process.chdir(cwd);
         }
     }
@@ -803,6 +817,158 @@ async function serveGitSite(port) {
         });
         ctx.type = 'application/json; charset=utf-8';
         ctx.body = JSON.stringify(blogItems);
+    });
+
+    const getPdfBookInfo = async function (book) {
+        const root = await generateBookIndex(book);
+        const info = {
+            imageUrl: '/static/pdf/default.png',
+            title: root.title,
+            author: root.author,
+            description: root.description,
+            domain: config.site.domain,
+            version: new Date().toISOString().substring(0, 10),
+            url: `${config.site.domain}${rootPath}/books/${book}/`
+        };
+        // check if book image exists:
+        for (let ext of ['svg', 'png', 'jpg']) {
+            const imgFile = path.join(process.env.sourceDir, 'static', 'pdf', `${book}.${ext}`);
+            if (fsSync.existsSync(imgFile)) {
+                info.imageUrl = `/static/pdf/${book}.${ext}`;
+                break;
+            }
+        }
+        console.log(JSON.stringify(info));
+        return info;
+    }
+
+    const generatePdf = async function (url, options) {
+        const browser = await puppeteer.launch({ headless: true });
+        console.log(`generate pdf from url: ${url}`);
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: 'networkidle0' });
+        await page.pdf(options);
+        await browser.close();
+    };
+
+    router.get(`${rootPath}/books/:book/pdf`, async ctx => {
+        const book = ctx.params.book;
+        console.log(`generate pdf for book: ${book}`);
+        const pdfContext = await getPdfBookInfo(book);
+        const pdfHeader = templateEngine.render('pdf_header.html', pdfContext);
+        const pdfFooter = templateEngine.render('pdf_footer.html', pdfContext);
+        const pdfMainFile = path.join(process.env.cacheDir, `${book}.main.pdf`);
+        const pdfFrontFile = path.join(process.env.cacheDir, `${book}.front.pdf`);
+        const pdfBackFile = path.join(process.env.cacheDir, `${book}.back.pdf`);
+        await generatePdf(`${ctx.request.origin}${ctx.request.path}.html`, {
+            path: pdfMainFile,
+            format: 'A4',
+            margin: {
+                top: 40,
+                bottom: 40,
+                right: 40,
+                left: 40
+            },
+            headerTemplate: pdfHeader,
+            footerTemplate: pdfFooter,
+            printBackground: true
+        });
+        await generatePdf(`${ctx.request.origin}${ctx.request.path}.front.html`, {
+            path: pdfFrontFile,
+            format: 'A4',
+            margin: {
+                top: 0,
+                bottom: 0,
+                right: 0,
+                left: 0
+            },
+            printBackground: true
+        });
+        await generatePdf(`${ctx.request.origin}${ctx.request.path}.back.html`, {
+            path: pdfBackFile,
+            format: 'A4',
+            margin: {
+                top: 0,
+                bottom: 0,
+                right: 0,
+                left: 0
+            },
+            printBackground: true
+        });
+        console.log(`merge pdf files: ${pdfMainFile}, ${pdfFrontFile}, ${pdfBackFile}`);
+        const pdfMainDoc = await PDFDocument.load(await loadBinaryFile(pdfMainFile));
+        const pdfFrontDoc = await PDFDocument.load(await loadBinaryFile(pdfFrontFile));
+        const pdfBackDoc = await PDFDocument.load(await loadBinaryFile(pdfBackFile));
+        // copy front and back page:
+        const [frontPage] = await pdfMainDoc.copyPages(pdfFrontDoc, [0]);
+        const [backPage] = await pdfMainDoc.copyPages(pdfBackDoc, [0]);
+        // insert front page and append back page::
+        pdfMainDoc.insertPage(0, frontPage);
+        pdfMainDoc.addPage(backPage);
+
+        const mergedPdfBuffer = await pdfMainDoc.save();
+        const pdfFile = path.join(process.env.cacheDir, `${book}.pdf`);
+        fsSync.writeFileSync(pdfFile, mergedPdfBuffer);
+        console.log(`final pdf file ok: ${pdfFile}`);
+        const now = new Date().toISOString().substring(0, 10);
+        ctx.set('Content-Disposition', `attachment; filename="${book}-${now}.pdf"`);
+        ctx.type = 'application/pdf; charset=utf-8';
+        ctx.body = await loadBinaryFile(pdfFile);
+        console.log(`download pdf file ok: ${pdfFile}`);
+    });
+
+    router.get(`${rootPath}/books/:book/pdf.front.html`, async ctx => {
+        const book = ctx.params.book;
+        const html = templateEngine.render("pdf_front.html", await getPdfBookInfo(book));
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = html;
+    });
+
+    router.get(`${rootPath}/books/:book/pdf.back.html`, async ctx => {
+        const book = ctx.params.book;
+        const html = templateEngine.render("pdf_back.html", await getPdfBookInfo(book));
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = html;
+    });
+
+    router.get(`${rootPath}/books/:book/pdf.html`, async ctx => {
+        const book = ctx.params.book;
+        const root = await generateBookIndex(book);
+        if (root.children.length === 0) {
+            throw `Book "${book} is empty.`;
+        }
+        const baseUri = `${rootPath}/books/${book}/`;
+        let toc = [];
+        let chapters = [];
+        let chapterList = flattenChapters(root);
+        for (let chapter of chapterList) {
+            chapter.id = 'pdf-chapter-' + chapter.marker.replace(/\./g, '-');
+            chapter.next = null;
+            chapter.prev = null;
+            chapter.children = null;
+            let content = markdown.render(chapter.content);
+            toc.push(`<div class="pdf-toc pdf-toc-${chapter.level}" style="margin-left:${chapter.level}rem;">${chapter.marker} <a href="#${chapter.id}">${encodeHtml(chapter.title)}</a></div>`);
+            chapters.push({
+                uri: `${rootPath}/books/${chapter.uri}/`,
+                id: chapter.id,
+                title: chapter.title,
+                content: content
+            });
+        }
+        const templateContext = await initTemplateContext();
+        templateContext.__uri__ = `${rootPath}/books/${book}/`;
+        templateContext.__disable_dark_mode__ = true;
+        templateContext.book = root;
+        templateContext.pdf = {
+            toc: generatePdfPage('', 'toc', 'Index', toc.join('\n')),
+            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, c.content)).join('\n')
+        };
+        console.debug(`render pdf, context:
+${jsonify(templateContext)}
+`);
+        const html = templateEngine.render("pdf.html", templateContext);
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = html;
     });
 
     router.get(`${rootPath}/books/:book/index.html`, async ctx => {
