@@ -909,14 +909,18 @@ async function serveGitSite(port) {
         // insert front page and append back page::
         pdfMainDoc.insertPage(0, frontPage);
         pdfMainDoc.addPage(backPage);
+        pdfMainDoc.setTitle(pdfContext.title);
+        pdfMainDoc.setAuthor(pdfContext.author);
+        pdfMainDoc.setSubject(pdfContext.description);
 
         const mergedPdfBuffer = await pdfMainDoc.save();
         const pdfFile = path.join(process.env.cacheDir, `${book}.pdf`);
         fsSync.writeFileSync(pdfFile, mergedPdfBuffer);
         console.log(`final pdf file ok: ${pdfFile}`);
         const now = new Date().toISOString().substring(0, 10);
-        ctx.set('Content-Disposition', `attachment; filename="${book}-${now}.pdf"`);
-        ctx.type = 'application/pdf; charset=utf-8';
+        const filename = `${pdfContext.title}-${pdfContext.author}-${now}.pdf`;
+        ctx.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+        ctx.type = 'application/pdf';
         ctx.body = await loadBinaryFile(pdfFile);
         console.log(`download pdf file ok: ${pdfFile}`);
     });
