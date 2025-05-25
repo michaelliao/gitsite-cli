@@ -865,7 +865,7 @@ async function serveGitSite(port) {
             path: pdfMainFile,
             format: 'A4',
             margin: {
-                top: 60,
+                top: 65,
                 bottom: 60,
                 right: 40,
                 left: 40
