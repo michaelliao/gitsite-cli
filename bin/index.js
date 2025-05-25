@@ -844,10 +844,18 @@ async function serveGitSite(port) {
     }
 
     const generatePdf = async function (url, options) {
+        // set default options if not present:
+        options.format = options.format || 'A4';
+        if (options.printBackground === undefined) {
+            options.printBackground = true;
+        }
+        if (options.timeout === undefined) {
+            options.timeout = 600000;
+        }
         const browser = await puppeteer.launch({ headless: true });
         console.log(`generate pdf from url: ${url}`);
         const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle0',timeout: 10 * 60_000 });
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 600000 });
         await page.pdf(options);
         await browser.close();
     };
@@ -863,39 +871,33 @@ async function serveGitSite(port) {
         const pdfBackFile = path.join(process.env.cacheDir, `${book}.back.pdf`);
         await generatePdf(`${ctx.request.origin}${ctx.request.path}.html`, {
             path: pdfMainFile,
-            format: 'A4',
+            displayHeaderFooter: true,
+            headerTemplate: pdfHeader,
+            footerTemplate: pdfFooter,
             margin: {
                 top: 70,
                 bottom: 60,
                 right: 40,
                 left: 40
-            },
-            displayHeaderFooter: true,
-            headerTemplate: pdfHeader,
-            footerTemplate: pdfFooter,
-            printBackground: true
+            }
         });
         await generatePdf(`${ctx.request.origin}${ctx.request.path}.front.html`, {
             path: pdfFrontFile,
-            format: 'A4',
             margin: {
                 top: 0,
                 bottom: 0,
                 right: 0,
                 left: 0
-            },
-            printBackground: true
+            }
         });
         await generatePdf(`${ctx.request.origin}${ctx.request.path}.back.html`, {
             path: pdfBackFile,
-            format: 'A4',
             margin: {
                 top: 0,
                 bottom: 0,
                 right: 0,
                 left: 0
-            },
-            printBackground: true
+            }
         });
         console.log(`merge pdf files: ${pdfMainFile}, ${pdfFrontFile}, ${pdfBackFile}`);
         const pdfMainDoc = await PDFDocument.load(await loadBinaryFile(pdfMainFile));
