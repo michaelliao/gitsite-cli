@@ -865,7 +865,7 @@ async function serveGitSite(port) {
             path: pdfMainFile,
             format: 'A4',
             margin: {
-                top: 65,
+                top: 70,
                 bottom: 60,
                 right: 40,
                 left: 40
@@ -949,12 +949,17 @@ async function serveGitSite(port) {
             chapter.prev = null;
             chapter.children = null;
             let content = markdown.render(chapter.content);
-            toc.push(`<div class="pdf-toc pdf-toc-${chapter.level}" style="margin-left:${chapter.level}rem;">${chapter.marker} <a href="#${chapter.id}">${encodeHtml(chapter.title)}</a></div>`);
             chapters.push({
                 uri: `${rootPath}/books/${chapter.uri}/`,
                 id: chapter.id,
                 title: chapter.title,
                 content: content
+            });
+            toc.push({
+                id: chapter.id,
+                title: chapter.title,
+                level: chapter.level,
+                marker: chapter.marker
             });
         }
         const templateContext = await initTemplateContext();
@@ -962,7 +967,7 @@ async function serveGitSite(port) {
         templateContext.__pdf__ = true;
         templateContext.book = root;
         templateContext.pdf = {
-            toc: generatePdfPage('', 'toc', 'Index', toc.join('\n')),
+            toc: toc,
             content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, c.content)).join('\n')
         };
         console.debug(`render pdf, context:
