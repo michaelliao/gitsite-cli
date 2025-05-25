@@ -822,6 +822,7 @@ async function serveGitSite(port) {
     const getPdfBookInfo = async function (book) {
         const root = await generateBookIndex(book);
         const info = {
+            __pdf__: true,
             imageUrl: '/static/pdf/default.png',
             title: root.title,
             author: root.author,
@@ -958,7 +959,7 @@ async function serveGitSite(port) {
         }
         const templateContext = await initTemplateContext();
         templateContext.__uri__ = `${rootPath}/books/${book}/`;
-        templateContext.__disable_dark_mode__ = true;
+        templateContext.__pdf__ = true;
         templateContext.book = root;
         templateContext.pdf = {
             toc: generatePdfPage('', 'toc', 'Index', toc.join('\n')),
