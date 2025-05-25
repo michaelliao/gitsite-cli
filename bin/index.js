@@ -846,7 +846,7 @@ async function serveGitSite(port) {
         const browser = await puppeteer.launch({ headless: true });
         console.log(`generate pdf from url: ${url}`);
         const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle0' });
+        await page.goto(url, { waitUntil: 'networkidle0',timeout: 10 * 60_000 });
         await page.pdf(options);
         await browser.close();
     };
@@ -864,11 +864,12 @@ async function serveGitSite(port) {
             path: pdfMainFile,
             format: 'A4',
             margin: {
-                top: 40,
-                bottom: 40,
+                top: 60,
+                bottom: 60,
                 right: 40,
                 left: 40
             },
+            displayHeaderFooter: true,
             headerTemplate: pdfHeader,
             footerTemplate: pdfFooter,
             printBackground: true
