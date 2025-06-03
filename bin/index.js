@@ -521,8 +521,8 @@ async function generateSearchIndex() {
     return js;
 }
 
-function generatePdfPage(chapterBaseUri, id, title, htmlContent) {
-    return `<div id="${id}" class="pdf-page" data-base-uri="${chapterBaseUri}"><a name="${id}"></a>
+function generatePdfPage(baseUrl, id, title, htmlContent) {
+    return `<div id="${id}" class="pdf-page" data-base-uri="${baseUrl}"><a name="${id}"></a>
     <h1 class="pdf-page-title">${encodeHtml(title)}</h1>
     ${htmlContent}
 </div>`;
@@ -718,6 +718,7 @@ async function serveGitSite(port) {
     // start koa http server:
     const app = new Koa();
     const router = new Router();
+
     // log url and handle errors:
     app.use(async (ctx, next) => {
         console.log(`${ctx.request.method}: ${ctx.request.path}`);
@@ -733,91 +734,33 @@ async function serveGitSite(port) {
         throw 'error';
     });
 
-    // for next two routes:
-    const processSpecialPage = async (ctx, templateEngine, mdFile) => {
-        const templateContext = await initTemplateContext();
-        [templateContext.title, templateContext.content] = markdownTitleContent(mdFile);
-        templateContext.htmlContent = markdown.render(templateContext.content);
-        renderTemplate(ctx, templateEngine, 'index.html', templateContext);
-    };
-
-    router.get(`${rootPath}/`, async ctx => {
-        const mdFile = path.join(sourceDir, 'README.md');
-        await processSpecialPage(ctx, templateEngine, mdFile);
-    });
-
-    router.get(`${rootPath}/404`, async ctx => {
-        const mdFile = path.join(sourceDir, '404.md');
-        await processSpecialPage(ctx, templateEngine, mdFile);
-    });
-
-    router.get(`${rootPath}/pages/:page/index.html`, async ctx => {
-        const pageName = ctx.params.page;
-        const mdFile = path.join(sourceDir, 'pages', pageName, 'README.md');
-        const templateContext = await initTemplateContext();
-        const page = {};
-        [page.title, page.content] = markdownTitleContent(mdFile);
-        page.git = `/pages/${pageName}/README.md`;
-        page.htmlContent = markdown.render(page.content);
-        templateContext.page = page;
-        renderTemplate(ctx, templateEngine, 'page.html', templateContext);
-    });
-
-    router.get(`${rootPath}/static/search-index.js`, async ctx => {
-        ctx.type = 'text/javascript; charset=utf-8';
-        ctx.body = searchIndex;
-    });
-
-    router.get(`${rootPath}/blogs/:tag/index.html`, async ctx => {
-        console.debug('process blog index.');
-        const blogs = await generateBlogIndex(ctx.params.tag);
-        if (blogs.length === 0) {
-            throw 'Blogs is empty';
+    const getPdfBlogInfo = async function (tag) {
+        const blogYml = path.join(process.env.sourceDir, 'blogs', tag, 'blog.yml');
+        let blogInfo = {};
+        if (isExists(blogYml)) {
+            blogInfo = await loadYaml(blogYml);
         }
-        ctx.type = 'text/html; charset=utf-8';
-        ctx.body = redirectHtml(`${rootPath}/blogs/${blogs[0].uri}/index.html`);
-    });
-
-    // for the next two routers:
-    const processBlog = async function (ctx, templateEngine, tag, name, viewName) {
-        const sourceDir = process.env.sourceDir;
-        const templateContext = await initTemplateContext();
-        const blogs = await generateBlogIndex(tag);
-        if (blogs.length === 0) {
-            throw 'No blog posted.';
-        }
-        const blog = blogs.find(b => b.name === name);
-        if (!blog) {
-            return sendError(404, ctx, `Blog not found: ${name}`);
-        }
-        let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs', tag);
-        blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
-        templateContext.sidebar = true;
-        templateContext.blogs = blogs;
-        templateContext.blog = blog;
-        renderTemplate(ctx, templateEngine, viewName, templateContext);
-    };
-
-    router.get(`${rootPath}/blogs/:tag/:name/index.html`, async ctx => {
-        await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog.html');
-    });
-
-    router.get(`${rootPath}/blogs/:tag/:name/content.html`, async ctx => {
-        await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog_content.html');
-    });
-
-    router.get(`${rootPath}/blogs/:tag/index.json`, async ctx => {
-        const blogs = await generateBlogIndex(ctx.params.tag);
-        const blogItems = blogs.map(blog => {
-            return {
-                date: blog.date,
-                uri: `/blogs/${blog.uri}/index.html`,
-                title: blog.title
+        const info = {
+            __pdf__: true,
+            imageUrl: '/static/pdf/default.png',
+            title: blogInfo.title || 'Blog',
+            author: blogInfo.author || 'Anonymous',
+            description: blogInfo.description || 'Blog posts',
+            domain: config.site.domain,
+            version: new Date().toISOString().substring(0, 10),
+            url: `${config.site.domain}${rootPath}/blogs/${tag}/`
+        };
+        // check if blog image exists:
+        for (let ext of ['svg', 'png', 'jpg']) {
+            const imgFile = path.join(process.env.sourceDir, 'static', 'pdf', `blog-${tag}.${ext}`);
+            if (fsSync.existsSync(imgFile)) {
+                info.imageUrl = `/static/pdf/blog-${tag}.${ext}`;
+                break;
             }
-        });
-        ctx.type = 'application/json; charset=utf-8';
-        ctx.body = JSON.stringify(blogItems);
-    });
+        }
+        console.log(JSON.stringify(info));
+        return info;
+    }
 
     const getPdfBookInfo = async function (book) {
         const root = await generateBookIndex(book);
@@ -833,9 +776,9 @@ async function serveGitSite(port) {
         };
         // check if book image exists:
         for (let ext of ['svg', 'png', 'jpg']) {
-            const imgFile = path.join(process.env.sourceDir, 'static', 'pdf', `${book}.${ext}`);
+            const imgFile = path.join(process.env.sourceDir, 'static', 'pdf', `book-${book}.${ext}`);
             if (fsSync.existsSync(imgFile)) {
-                info.imageUrl = `/static/pdf/${book}.${ext}`;
+                info.imageUrl = `/static/pdf/book-${book}.${ext}`;
                 break;
             }
         }
@@ -860,10 +803,7 @@ async function serveGitSite(port) {
         await browser.close();
     };
 
-    router.get(`${rootPath}/books/:book/pdf`, async ctx => {
-        const book = ctx.params.book;
-        console.log(`generate pdf for book: ${book}`);
-        const pdfContext = await getPdfBookInfo(book);
+    const downloadPdf = async function (ctx, book, pdfContext) {
         const pdfHeader = templateEngine.render('pdf_header.html', pdfContext);
         const pdfFooter = templateEngine.render('pdf_footer.html', pdfContext);
         const pdfMainFile = path.join(process.env.cacheDir, `${book}.main.pdf`);
@@ -923,6 +863,163 @@ async function serveGitSite(port) {
         ctx.type = 'application/pdf';
         ctx.body = await loadBinaryFile(pdfFile);
         console.log(`download pdf file ok: ${pdfFile}`);
+    }
+
+    // for next two routes:
+    const processSpecialPage = async (ctx, templateEngine, mdFile) => {
+        const templateContext = await initTemplateContext();
+        [templateContext.title, templateContext.content] = markdownTitleContent(mdFile);
+        templateContext.htmlContent = markdown.render(templateContext.content);
+        renderTemplate(ctx, templateEngine, 'index.html', templateContext);
+    };
+
+    router.get(`${rootPath}/`, async ctx => {
+        const mdFile = path.join(sourceDir, 'README.md');
+        await processSpecialPage(ctx, templateEngine, mdFile);
+    });
+
+    router.get(`${rootPath}/404`, async ctx => {
+        const mdFile = path.join(sourceDir, '404.md');
+        await processSpecialPage(ctx, templateEngine, mdFile);
+    });
+
+    router.get(`${rootPath}/pages/:page/index.html`, async ctx => {
+        const pageName = ctx.params.page;
+        const mdFile = path.join(sourceDir, 'pages', pageName, 'README.md');
+        const templateContext = await initTemplateContext();
+        const page = {};
+        [page.title, page.content] = markdownTitleContent(mdFile);
+        page.git = `/pages/${pageName}/README.md`;
+        page.htmlContent = markdown.render(page.content);
+        templateContext.page = page;
+        renderTemplate(ctx, templateEngine, 'page.html', templateContext);
+    });
+
+    router.get(`${rootPath}/static/search-index.js`, async ctx => {
+        ctx.type = 'text/javascript; charset=utf-8';
+        ctx.body = searchIndex;
+    });
+
+    // for the next two routers:
+    const processBlog = async function (ctx, templateEngine, tag, name, viewName) {
+        const sourceDir = process.env.sourceDir;
+        const templateContext = await initTemplateContext();
+        const blogs = await generateBlogIndex(tag);
+        if (blogs.length === 0) {
+            throw 'No blog posted.';
+        }
+        const blog = blogs.find(b => b.name === name);
+        if (!blog) {
+            return sendError(404, ctx, `Blog not found: ${name}`);
+        }
+        let [beforeMD, afterMD] = await loadBeforeAndAfter(sourceDir, 'blogs', tag);
+        blog.htmlContent = markdown.render(beforeMD + blog.content + afterMD);
+        templateContext.sidebar = true;
+        templateContext.blogs = blogs;
+        templateContext.blog = blog;
+        renderTemplate(ctx, templateEngine, viewName, templateContext);
+    };
+
+    router.get(`${rootPath}/blogs/:tag/pdf.front.html`, async ctx => {
+        const tag = ctx.params.tag;
+        const html = templateEngine.render("pdf_front.html", await getPdfBlogInfo(tag));
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = html;
+    });
+
+    router.get(`${rootPath}/blogs/:tag/pdf.back.html`, async ctx => {
+        const tag = ctx.params.tag;
+        const html = templateEngine.render("pdf_back.html", await getPdfBlogInfo(tag));
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = html;
+    });
+
+    router.get(`${rootPath}/blogs/:tag/pdf.html`, async ctx => {
+        const tag = ctx.params.tag;
+        const blogs = await generateBlogIndex(tag);
+        if (blogs.length === 0) {
+            throw 'Blogs is empty';
+        }
+        const info = await getPdfBlogInfo(tag);
+        const baseUri = `${rootPath}/blogs/${tag}/`;
+        let toc = [];
+        let chapters = [];
+        for (let i=0; i<blogs.length; i++) {
+            let blog = blogs[i];
+            blog.id = 'pdf-chapter-' + i;
+            let content = markdown.render(blog.content);
+            chapters.push({
+                uri: `${rootPath}/blogs/${blog.uri}/`,
+                id: blog.id,
+                title: blog.title,
+                content: content
+            });
+            toc.push({
+                id: blog.id,
+                title: blog.title,
+                level: 1,
+                marker: blog.date
+            });
+        }
+        const templateContext = await initTemplateContext();
+        templateContext.__uri__ = baseUri;
+        templateContext.__pdf__ = true;
+        templateContext.pdf = {
+            title: info.title,
+            toc: toc,
+            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, c.content)).join('\n')
+        };
+        console.debug(`render pdf, context:
+${jsonify(templateContext)}
+`);
+        const html = templateEngine.render("pdf.html", templateContext);
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = html;
+    });
+
+    router.get(`${rootPath}/blogs/:tag/index.html`, async ctx => {
+        console.debug('process blog index.');
+        const blogs = await generateBlogIndex(ctx.params.tag);
+        if (blogs.length === 0) {
+            throw 'Blogs is empty';
+        }
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = redirectHtml(`${rootPath}/blogs/${blogs[0].uri}/index.html`);
+    });
+
+    router.get(`${rootPath}/blogs/:tag/:name/index.html`, async ctx => {
+        await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog.html');
+    });
+
+    router.get(`${rootPath}/blogs/:tag/:name/content.html`, async ctx => {
+        await processBlog(ctx, templateEngine, ctx.params.tag, ctx.params.name, 'blog_content.html');
+    });
+
+    router.get(`${rootPath}/blogs/:tag/index.json`, async ctx => {
+        const blogs = await generateBlogIndex(ctx.params.tag);
+        const blogItems = blogs.map(blog => {
+            return {
+                date: blog.date,
+                uri: `/blogs/${blog.uri}/index.html`,
+                title: blog.title
+            }
+        });
+        ctx.type = 'application/json; charset=utf-8';
+        ctx.body = JSON.stringify(blogItems);
+    });
+
+    router.get(`${rootPath}/blogs/:tag/pdf`, async ctx => {
+        const tag = ctx.params.tag;
+        console.log(`generate pdf for blog: ${tag}`);
+        const pdfContext = await getPdfBlogInfo(tag);
+        await downloadPdf(ctx, tag, pdfContext);
+    });
+
+    router.get(`${rootPath}/books/:book/pdf`, async ctx => {
+        const book = ctx.params.book;
+        console.log(`generate pdf for book: ${book}`);
+        const pdfContext = await getPdfBookInfo(book);
+        await downloadPdf(ctx, book, pdfContext);
     });
 
     router.get(`${rootPath}/books/:book/pdf.front.html`, async ctx => {
@@ -965,14 +1062,14 @@ async function serveGitSite(port) {
                 id: chapter.id,
                 title: chapter.title,
                 level: chapter.level,
-                marker: chapter.marker
+                marker: chapter.marker + '.'
             });
         }
         const templateContext = await initTemplateContext();
-        templateContext.__uri__ = `${rootPath}/books/${book}/`;
+        templateContext.__uri__ = baseUri;
         templateContext.__pdf__ = true;
-        templateContext.book = root;
         templateContext.pdf = {
+            title: root.title,
             toc: toc,
             content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, c.content)).join('\n')
         };
@@ -1044,6 +1141,16 @@ ${jsonify(templateContext)}
         } else {
             sendError(404, ctx, `File not found: ${file}`);
         }
+    });
+
+    router.get(`${rootPath}/shutdown`, async ctx => {
+        // shutdown server:
+        console.log('shutdown server...');
+        ctx.type = 'text/plain; charset=utf-8';
+        ctx.body = 'Server is shutting down...';
+        setTimeout(() => {
+            process.exit(0);
+        }, 1000);
     });
 
     router.get(`${rootPath}/(.*)`, async ctx => {
