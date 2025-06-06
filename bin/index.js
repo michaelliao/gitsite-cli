@@ -521,9 +521,10 @@ async function generateSearchIndex() {
     return js;
 }
 
-function generatePdfPage(baseUrl, id, title, htmlContent) {
+function generatePdfPage(baseUrl, id, title, url, htmlContent) {
     return `<div id="${id}" class="pdf-page" data-base-uri="${baseUrl}"><a name="${id}"></a>
     <h1 class="pdf-page-title">${encodeHtml(title)}</h1>
+    <div class="pdf-page-url"><a href="${url}" data-i18n>Original URL</a></div>
     ${htmlContent}
 </div>`;
 }
@@ -747,6 +748,7 @@ async function serveGitSite(port) {
             author: blogInfo.author || 'Anonymous',
             description: blogInfo.description || 'Blog posts',
             domain: config.site.domain,
+            language: config.site.language,
             version: new Date().toISOString().substring(0, 10),
             url: `${config.site.domain}${rootPath}/blogs/${tag}/`
         };
@@ -771,6 +773,7 @@ async function serveGitSite(port) {
             author: root.author,
             description: root.description,
             domain: config.site.domain,
+            language: config.site.language,
             version: new Date().toISOString().substring(0, 10),
             url: `${config.site.domain}${rootPath}/books/${book}/`
         };
@@ -967,7 +970,7 @@ async function serveGitSite(port) {
         templateContext.pdf = {
             title: info.title,
             toc: toc,
-            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, c.content)).join('\n')
+            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, config.site.domain + c.uri, c.content)).join('\n')
         };
         console.debug(`render pdf, context:
 ${jsonify(templateContext)}
@@ -1071,7 +1074,7 @@ ${jsonify(templateContext)}
         templateContext.pdf = {
             title: root.title,
             toc: toc,
-            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, c.content)).join('\n')
+            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, config.site.domain + c.uri, c.content)).join('\n')
         };
         console.debug(`render pdf, context:
 ${jsonify(templateContext)}
