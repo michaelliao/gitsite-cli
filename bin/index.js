@@ -790,7 +790,7 @@ async function serveGitSite(port) {
         if (options.timeout === undefined) {
             options.timeout = 600_000;
         }
-        const browser = await puppeteer.launch({ headless: true });
+        const browser = await puppeteer.launch({ headless: true, protocolTimeout: 600_000 });
         console.log(`generate pdf from url: ${url}`);
         const page = await browser.newPage();
         await page.goto(url, { waitUntil: 'networkidle0', timeout: 600_000 });
