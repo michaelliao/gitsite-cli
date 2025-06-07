@@ -788,12 +788,12 @@ async function serveGitSite(port) {
             options.printBackground = true;
         }
         if (options.timeout === undefined) {
-            options.timeout = 600000;
+            options.timeout = 600_000;
         }
         const browser = await puppeteer.launch({ headless: true });
         console.log(`generate pdf from url: ${url}`);
         const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle0', timeout: 600000 });
+        await page.goto(url, { waitUntil: 'networkidle0', timeout: 600_000 });
         await page.pdf(options);
         await browser.close();
     };
@@ -805,6 +805,7 @@ async function serveGitSite(port) {
         const pdfFrontFile = path.join(process.env.cacheDir, `${book}.front.pdf`);
         const pdfBackFile = path.join(process.env.cacheDir, `${book}.back.pdf`);
         await generatePdf(`${ctx.request.origin}${ctx.request.path}.html`, {
+            timeout: 1800_000,
             path: pdfMainFile,
             displayHeaderFooter: true,
             headerTemplate: pdfHeader,
