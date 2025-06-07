@@ -521,14 +521,6 @@ async function generateSearchIndex() {
     return js;
 }
 
-function generatePdfPage(baseUrl, id, title, url, htmlContent) {
-    return `<div id="${id}" class="pdf-page" data-base-uri="${baseUrl}"><a name="${id}"></a>
-    <h1 class="pdf-page-title">${encodeHtml(title)}</h1>
-    <div class="pdf-page-url"><a href="${url}" data-i18n>Original URL</a></div>
-    ${htmlContent}
-</div>`;
-}
-
 async function buildGitSite() {
     const sourceDir = process.env.sourceDir;
     const outputDir = process.env.outputDir;
@@ -950,13 +942,15 @@ async function serveGitSite(port) {
         for (let i=0; i<blogs.length; i++) {
             let blog = blogs[i];
             blog.id = 'pdf-chapter-' + i;
-            let content = markdown.render(blog.content);
-            chapters.push({
-                uri: `${rootPath}/blogs/${blog.uri}/`,
+            let uri = `${rootPath}/blogs/${blog.uri}/`;
+            let c = {
+                baseUrl: uri,
+                url: config.site.domain + uri,
                 id: blog.id,
                 title: blog.title,
-                content: content
-            });
+                content: markdown.render(blog.content)
+            };
+            chapters.push(c);
             toc.push({
                 id: blog.id,
                 title: blog.title,
@@ -970,7 +964,7 @@ async function serveGitSite(port) {
         templateContext.pdf = {
             title: info.title,
             toc: toc,
-            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, config.site.domain + c.uri, c.content)).join('\n')
+            chapters: chapters
         };
         console.debug(`render pdf, context:
 ${jsonify(templateContext)}
@@ -1051,16 +1045,15 @@ ${jsonify(templateContext)}
         let chapterList = flattenChapters(root);
         for (let chapter of chapterList) {
             chapter.id = 'pdf-chapter-' + chapter.marker.replace(/\./g, '-');
-            chapter.next = null;
-            chapter.prev = null;
-            chapter.children = null;
-            let content = markdown.render(chapter.content);
-            chapters.push({
-                uri: `${rootPath}/books/${chapter.uri}/`,
+            let uri = `${rootPath}/books/${chapter.uri}/`;
+            let c = {
+                baseUrl: uri,
+                url: config.site.domain + uri,
                 id: chapter.id,
                 title: chapter.title,
-                content: content
-            });
+                content: markdown.render(chapter.content)
+            };
+            chapters.push(c);
             toc.push({
                 id: chapter.id,
                 title: chapter.title,
@@ -1074,7 +1067,7 @@ ${jsonify(templateContext)}
         templateContext.pdf = {
             title: root.title,
             toc: toc,
-            content: chapters.map(c => generatePdfPage(c.uri, c.id, c.title, config.site.domain + c.uri, c.content)).join('\n')
+            chapters: chapters
         };
         console.debug(`render pdf, context:
 ${jsonify(templateContext)}
