@@ -929,6 +929,25 @@ async function serveGitSite(port) {
         ctx.body = html;
     });
 
+    async function getBlogToc(tag) {
+        const blogs = await generateBlogIndex(tag);
+        if (blogs.length === 0) {
+            throw 'Blogs is empty';
+        }
+        let toc = [];
+        for (let i=0; i<blogs.length; i++) {
+            let blog = blogs[i];
+            blog.id = 'pdf-chapter-' + i;
+            toc.push({
+                id: blog.id,
+                title: blog.title,
+                level: 1,
+                marker: blog.date
+            });
+        }
+        return toc;
+    }
+
     router.get(`${rootPath}/blogs/:tag/pdf.html`, async ctx => {
         const tag = ctx.params.tag;
         const blogs = await generateBlogIndex(tag);
@@ -937,7 +956,7 @@ async function serveGitSite(port) {
         }
         const info = await getPdfBlogInfo(tag);
         const baseUri = `${rootPath}/blogs/${tag}/`;
-        let toc = [];
+        let toc = await getBlogToc(tag);
         let chapters = [];
         for (let i=0; i<blogs.length; i++) {
             let blog = blogs[i];
@@ -951,12 +970,6 @@ async function serveGitSite(port) {
                 content: markdown.render(blog.content)
             };
             chapters.push(c);
-            toc.push({
-                id: blog.id,
-                title: blog.title,
-                level: 1,
-                marker: blog.date
-            });
         }
         const templateContext = await initTemplateContext();
         templateContext.__uri__ = baseUri;
@@ -1033,6 +1046,32 @@ ${jsonify(templateContext)}
         ctx.body = html;
     });
 
+    function getChapterId(chapter) {
+        if (chapter.marker) {
+            return 'pdf-chapter-' + chapter.marker.replace(/\./g, '-');
+        }
+        throw `Invalid chapter: ${JSON.stringify(chapter)}`;
+    }
+
+    async function getBookToc(book) {
+        const root = await generateBookIndex(book);
+        if (root.children.length === 0) {
+            throw `Book "${book} is empty.`;
+        }
+        let toc = [];
+        let chapterList = flattenChapters(root);
+        for (let chapter of chapterList) {
+            chapter.id = getChapterId(chapter);
+            toc.push({
+                id: chapter.id,
+                title: chapter.title,
+                level: chapter.level,
+                marker: chapter.marker + '.'
+            });
+        }
+        return toc;
+    }
+
     router.get(`${rootPath}/books/:book/pdf.html`, async ctx => {
         const book = ctx.params.book;
         const root = await generateBookIndex(book);
@@ -1040,11 +1079,11 @@ ${jsonify(templateContext)}
             throw `Book "${book} is empty.`;
         }
         const baseUri = `${rootPath}/books/${book}/`;
-        let toc = [];
+        let toc = await getBookToc(book);
         let chapters = [];
         let chapterList = flattenChapters(root);
         for (let chapter of chapterList) {
-            chapter.id = 'pdf-chapter-' + chapter.marker.replace(/\./g, '-');
+            chapter.id = getChapterId(chapter);
             let uri = `${rootPath}/books/${chapter.uri}/`;
             let c = {
                 baseUrl: uri,
@@ -1054,12 +1093,6 @@ ${jsonify(templateContext)}
                 content: markdown.render(chapter.content)
             };
             chapters.push(c);
-            toc.push({
-                id: chapter.id,
-                title: chapter.title,
-                level: chapter.level,
-                marker: chapter.marker + '.'
-            });
         }
         const templateContext = await initTemplateContext();
         templateContext.__uri__ = baseUri;
