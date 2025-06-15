@@ -342,7 +342,6 @@ async function generateBlogIndex(tag) {
 async function generateBookIndex(bookDirName) {
     const sourceDir = process.env.sourceDir;
     const booksDir = path.join(sourceDir, 'books');
-    let bookUrlBase = `/books/${bookDirName}`;
     let bookInfo = await loadYaml(booksDir, bookDirName, 'book.yml');
     let listDir = async (parent, dir, index) => {
         let fullDir = path.join(booksDir, dir);
