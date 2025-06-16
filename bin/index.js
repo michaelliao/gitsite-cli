@@ -18,7 +18,9 @@ import { tokenizer, createIndex } from './search.js';
 import createMarkdown from './markdown.js';
 import { markdownToTxt } from 'markdown-to-txt';
 import { copyStaticFiles, isExists, loadBinaryFile, loadYaml, loadTextFile, flattenChapters, getSubDirs, markdownTitleContent, writeTextFile, encodeHtml, isValidDate } from './helper.js';
-import { PDFDocument } from 'pdf-lib';
+import { PDFArray, PDFDocument, PDFName, PDFRef } from 'pdf-lib';
+
+const PDF_ID_PREFIX = 'gitsite-pdf-id-';
 
 // default config:
 const DEFAULT_CONFIG = {
@@ -268,9 +270,11 @@ function redirectHtml(redirect) {
 
 // init template context by loading config:
 async function initTemplateContext() {
-    const templateContext = await loadConfig();
+    const config = await loadConfig();
+    const templateContext = config;
     templateContext.__mode__ = process.env.mode;
     templateContext.__timestamp__ = process.env.timestamp;
+    templateContext.__i18n__ = await loadTextFile(process.env.themesDir, config.site.theme, 'i18n.json');
     return templateContext;
 }
 
@@ -797,9 +801,11 @@ async function serveGitSite(port) {
         await browser.close();
     };
 
-    const downloadPdf = async function (ctx, book, pdfContext) {
+    const downloadPdf = async function (ctx, book, toc, pdfContext) {
+        const templateContext = await initTemplateContext();
         const pdfHeader = templateEngine.render('pdf_header.html', pdfContext);
         const pdfFooter = templateEngine.render('pdf_footer.html', pdfContext);
+        const pdfBookmarkFile = path.join(process.env.cacheDir, `${book}.bookmark.txt`);
         const pdfMainFile = path.join(process.env.cacheDir, `${book}.main.pdf`);
         const pdfFrontFile = path.join(process.env.cacheDir, `${book}.front.pdf`);
         const pdfBackFile = path.join(process.env.cacheDir, `${book}.back.pdf`);
@@ -834,8 +840,54 @@ async function serveGitSite(port) {
                 left: 0
             }
         });
-        console.log(`merge pdf files: ${pdfMainFile}, ${pdfFrontFile}, ${pdfBackFile}`);
+        console.log(`merge pdf files: ${pdfFrontFile}, ${pdfMainFile}, ${pdfBackFile}`);
         const pdfMainDoc = await PDFDocument.load(await loadBinaryFile(pdfMainFile));
+        // scan each page:
+        const pdfPages = pdfMainDoc.getPages();
+        const pdfPageObjNums = [];
+        for (let i=0; i<pdfPages.length; i++) {
+            const page = pdfPages[i];
+            pdfPageObjNums.push(page.ref.objectNumber); 
+        }
+        console.log(`pdf page object numbers: ${pdfPageObjNums}`);
+        // scan objects:
+        const nameToPageObjNumber = {};
+        const pdfIndObjs = pdfMainDoc.context.indirectObjects;
+        for (let [pdfKey, pdfValue] of pdfIndObjs.entries()) {
+            if (pdfKey instanceof PDFRef) {
+                let pdfValueDict = pdfValue.dict;
+                if (pdfValueDict) {
+                    for (let [pk, pv] of pdfValueDict.entries()) {
+                        if (pk instanceof PDFName && pv instanceof PDFArray) {
+                            let name = pk.decodeText();
+                            if (name && name.startsWith(PDF_ID_PREFIX)) {
+                                nameToPageObjNumber[name] = pv.array[0].objectNumber;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        console.log('name to page object number:\n' + JSON.stringify(nameToPageObjNumber, null, '  '));
+        // generate bookmark:
+        let bookmarkData = [];
+        let indexName = (templateContext.__i18n__[templateContext.site.language]||{})['index'] || 'Index';
+        bookmarkData.push('BookmarkBegin', `BookmarkTitle: ${indexName}`, 'BookmarkLevel: 1', 'BookmarkPageNumber: 2');
+        for (let t of toc) {
+            let pageObjNum = nameToPageObjNumber[t.id];
+            if (pageObjNum) {
+                let pageNum = pdfPageObjNums.indexOf(pageObjNum);
+                if (pageNum >= 0) {
+                    bookmarkData.push('BookmarkBegin', `BookmarkTitle: ${t.title}`, `BookmarkLevel: ${t.level}`, `BookmarkPageNumber: ${pageNum+2}`);
+                } else {
+                    console.warn(`cannot find page number for id: ${t.id}`);
+                }
+            } else {
+                console.warn(`cannot find page object number for id: ${t.id}`);
+            }
+        }
+        await writeTextFile(pdfBookmarkFile, bookmarkData.join('\n'));
+
         const pdfFrontDoc = await PDFDocument.load(await loadBinaryFile(pdfFrontFile));
         const pdfBackDoc = await PDFDocument.load(await loadBinaryFile(pdfBackFile));
         // copy front and back page:
@@ -849,9 +901,20 @@ async function serveGitSite(port) {
         pdfMainDoc.setSubject(pdfContext.description);
 
         const mergedPdfBuffer = await pdfMainDoc.save();
-        const pdfFile = path.join(process.env.cacheDir, `${book}.pdf`);
-        fsSync.writeFileSync(pdfFile, mergedPdfBuffer);
-        console.log(`final pdf file ok: ${pdfFile}`);
+        const pdfMergedFile = path.join(process.env.cacheDir, `${book}.merge.pdf`);
+        fsSync.writeFileSync(pdfMergedFile, mergedPdfBuffer);
+        console.log(`merge pdf file ok: ${pdfMergedFile}`);
+        let pdfFile = pdfMergedFile;
+        // use pdftk to generate bookmark:
+        let pdftkInstalled = false;
+        if (runSync('pdftk --version')) {
+            pdftkInstalled = true;
+            pdfFile = path.join(process.env.cacheDir, `${book}.pdf`);
+            runSync(`pdftk ${pdfMergedFile} update_info ${pdfBookmarkFile} output ${pdfFile}`);
+        } else {
+            console.warn('pdftk not installed. skip add bookmark.');
+        }
+        console.log(`generate final pdf file ok: ${pdfFile}`);
         const now = new Date().toISOString().substring(0, 10);
         const filename = `${pdfContext.title}-${pdfContext.author}-${now}.pdf`;
         ctx.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
@@ -937,7 +1000,7 @@ async function serveGitSite(port) {
         let toc = [];
         for (let i=0; i<blogs.length; i++) {
             let blog = blogs[i];
-            blog.id = 'pdf-chapter-' + i;
+            blog.id = PDF_ID_PREFIX + i;
             toc.push({
                 id: blog.id,
                 title: blog.title,
@@ -960,7 +1023,7 @@ async function serveGitSite(port) {
         let chapters = [];
         for (let i=0; i<blogs.length; i++) {
             let blog = blogs[i];
-            blog.id = 'pdf-chapter-' + i;
+            blog.id = PDF_ID_PREFIX + i;
             let uri = `${rootPath}/blogs/${blog.uri}/`;
             let c = {
                 baseUrl: uri,
@@ -1022,14 +1085,14 @@ ${jsonify(templateContext)}
         const tag = ctx.params.tag;
         console.log(`generate pdf for blog: ${tag}`);
         const pdfContext = await getPdfBlogInfo(tag);
-        await downloadPdf(ctx, tag, pdfContext);
+        await downloadPdf(ctx, tag, await getBlogToc(tag), pdfContext);
     });
 
     router.get(`${rootPath}/books/:book/pdf`, async ctx => {
         const book = ctx.params.book;
         console.log(`generate pdf for book: ${book}`);
         const pdfContext = await getPdfBookInfo(book);
-        await downloadPdf(ctx, book, pdfContext);
+        await downloadPdf(ctx, book, await getBookToc(book), pdfContext);
     });
 
     router.get(`${rootPath}/books/:book/pdf.front.html`, async ctx => {
@@ -1048,7 +1111,7 @@ ${jsonify(templateContext)}
 
     function getChapterId(chapter) {
         if (chapter.marker) {
-            return 'pdf-chapter-' + chapter.marker.replace(/\./g, '-');
+            return PDF_ID_PREFIX + chapter.marker.replace(/\./g, '-');
         }
         throw `Invalid chapter: ${JSON.stringify(chapter)}`;
     }
