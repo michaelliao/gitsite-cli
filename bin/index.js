@@ -878,7 +878,7 @@ async function serveGitSite(port) {
             if (pageObjNum) {
                 let pageNum = pdfPageObjNums.indexOf(pageObjNum);
                 if (pageNum >= 0) {
-                    bookmarkData.push('BookmarkBegin', `BookmarkTitle: ${t.title}`, `BookmarkLevel: ${t.level}`, `BookmarkPageNumber: ${pageNum+2}`);
+                    bookmarkData.push('BookmarkBegin', `BookmarkTitle: ${t.marker} ${t.title}`, `BookmarkLevel: ${t.level}`, `BookmarkPageNumber: ${pageNum+2}`);
                 } else {
                     console.warn(`cannot find page number for id: ${t.id}`);
                 }
