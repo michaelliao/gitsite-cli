@@ -274,7 +274,7 @@ async function initTemplateContext() {
     const templateContext = config;
     templateContext.__mode__ = process.env.mode;
     templateContext.__timestamp__ = process.env.timestamp;
-    templateContext.__i18n__ = await loadTextFile(process.env.themesDir, config.site.theme, 'i18n.json');
+    templateContext.__i18n__ = JSON.parse(await loadTextFile(process.env.themesDir, config.site.theme, 'i18n.json'));
     return templateContext;
 }
 
@@ -910,7 +910,7 @@ async function serveGitSite(port) {
         if (runSync('pdftk --version')) {
             pdftkInstalled = true;
             pdfFile = path.join(process.env.cacheDir, `${book}.pdf`);
-            runSync(`pdftk ${pdfMergedFile} update_info ${pdfBookmarkFile} output ${pdfFile}`);
+            runSync(`pdftk ${pdfMergedFile} update_info_utf8 ${pdfBookmarkFile} output ${pdfFile}`);
         } else {
             console.warn('pdftk not installed. skip add bookmark.');
         }
